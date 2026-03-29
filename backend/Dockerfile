@@ -1,11 +1,11 @@
-FROM maven:3.9-eclipse-temurin-25 AS build
-WORKDIR /app
-COPY pom.xml .
+FROM gradle:9.4.1-jdk25 AS build
+WORKDIR /home/gradle/project
+COPY build.gradle.kts settings.gradle.kts ./
 COPY src ./src
-RUN mvn -B -DskipTests package
+RUN gradle bootJar --no-daemon
 
 FROM eclipse-temurin:25
 WORKDIR /app
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /home/gradle/project/build/libs/*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]

@@ -19,10 +19,15 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-          cache: maven
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.4.1'
 
       - name: Run backend tests
-        run: mvn -B -f backend/pom.xml test
+        working-directory: backend
+        run: gradle test --no-daemon
 
   frontend-test:
     name: Frontend tests

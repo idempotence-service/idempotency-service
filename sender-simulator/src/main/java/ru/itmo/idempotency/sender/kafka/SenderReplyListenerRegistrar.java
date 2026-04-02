@@ -1,4 +1,4 @@
-h opackage ru.itmo.idempotency.sender.kafka;
+package ru.itmo.idempotency.sender.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;

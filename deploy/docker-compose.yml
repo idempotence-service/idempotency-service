@@ -38,8 +38,8 @@ services:
       - PLAINTEXT://0.0.0.0:9092
       - --advertise-kafka-addr
       - PLAINTEXT://redpanda-sender:9092
-    ports:
-      - "19092:9092"
+    expose:
+      - "9092"
 
   redpanda-receiver:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
@@ -61,8 +61,8 @@ services:
       - PLAINTEXT://0.0.0.0:9092
       - --advertise-kafka-addr
       - PLAINTEXT://redpanda-receiver:9092
-    ports:
-      - "29092:9092"
+    expose:
+      - "9092"
 
   core-service:
     image: ${CORE_SERVICE_IMAGE}

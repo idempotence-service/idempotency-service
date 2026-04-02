@@ -2,16 +2,17 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: idempotency-postgres
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: idempotency
-      POSTGRES_USER: idempotency
-      POSTGRES_PASSWORD: idempotency
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U idempotency -d idempotency"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -19,6 +20,7 @@ services:
   redpanda-sender:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
     container_name: redpanda-sender
+    restart: unless-stopped
     command:
       - redpanda
       - start
@@ -42,6 +44,7 @@ services:
   redpanda-receiver:
     image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
     container_name: redpanda-receiver
+    restart: unless-stopped
     command:
       - redpanda
       - start
@@ -63,21 +66,18 @@ services:
       - "29092:9092"
 
   core-service:
-    build:
-      context: .
-      dockerfile: core-service/Dockerfile
+    image: ${CORE_SERVICE_IMAGE}
     container_name: core-service
+    restart: unless-stopped
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/idempotency
-      SPRING_DATASOURCE_USERNAME: idempotency
-      SPRING_DATASOURCE_PASSWORD: idempotency
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
       APP_ROUTES_FILE: /app/config/routes.yaml
       APP_SECURITY_TOKENS_0_TOKEN: operator-token
       APP_SECURITY_TOKENS_0_PRINCIPAL: operator
       APP_SECURITY_TOKENS_0_ROLES_0: OPERATOR
       APP_SECURITY_TOKENS_0_ROLES_1: ADMIN
-    volumes:
-      - ./config:/app/config:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,14 +89,11 @@ services:
       - "8080:8080"
 
   sender-simulator:
-    build:
-      context: .
-      dockerfile: sender-simulator/Dockerfile
+    image: ${SENDER_SIMULATOR_IMAGE}
     container_name: sender-simulator
+    restart: unless-stopped
     environment:
       APP_ROUTES_FILE: /app/config/routes.yaml
-    volumes:
-      - ./config:/app/config:ro
     depends_on:
       redpanda-sender:
         condition: service_started
@@ -106,14 +103,11 @@ services:
       - "8081:8081"
 
   receiver-simulator:
-    build:
-      context: .
-      dockerfile: receiver-simulator/Dockerfile
+    image: ${RECEIVER_SIMULATOR_IMAGE}
     container_name: receiver-simulator
+    restart: unless-stopped
     environment:
       APP_ROUTES_FILE: /app/config/routes.yaml
-    volumes:
-      - ./config:/app/config:ro
     depends_on:
       redpanda-receiver:
         condition: service_started

@@ -22,9 +22,9 @@ subprojects {
         }
     }
 
-    java {
+    extensions.configure(org.gradle.api.plugins.JavaPluginExtension) {
         toolchain {
-            languageVersion = JavaLanguageVersion.of(21)
+            languageVersion = org.gradle.jvm.toolchain.JavaLanguageVersion.of(21)
         }
     }
 

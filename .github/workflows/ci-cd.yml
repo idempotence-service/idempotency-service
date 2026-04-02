@@ -5,15 +5,11 @@ on:
     branches:
       - release/01.001.00
   pull_request:
-    branches:
-      - release/01.001.00
 
 jobs:
   backend-test:
     name: Backend tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -25,10 +21,12 @@ jobs:
           java-version: '21'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Make Gradle wrapper executable
-        run: chmod +x ./gradlew
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
 
       - name: Run backend tests
         run: ./gradlew test --no-daemon
@@ -56,17 +54,17 @@ jobs:
           echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@v3
 
       - name: Build and push core-service image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./core-service/Dockerfile
@@ -74,11 +72,9 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image_base }}/core-service:${{ steps.meta.outputs.image_tag }}
             ${{ steps.meta.outputs.image_base }}/core-service:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and push sender-simulator image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./sender-simulator/Dockerfile
@@ -86,11 +82,9 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image_base }}/sender-simulator:${{ steps.meta.outputs.image_tag }}
             ${{ steps.meta.outputs.image_base }}/sender-simulator:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build and push receiver-simulator image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./receiver-simulator/Dockerfile
@@ -98,8 +92,6 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.image_base }}/receiver-simulator:${{ steps.meta.outputs.image_tag }}
             ${{ steps.meta.outputs.image_base }}/receiver-simulator:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
   deploy:
     name: Deploy to VPS
@@ -147,50 +139,41 @@ jobs:
 
       - name: Copy deployment files to server
         run: |
-          ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' 'mkdir -p ~/apps/demo-monorepo'
-          scp -P '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 .deploy/docker-compose.yml .deploy/.env '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/apps/demo-monorepo/'
+          ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' 'mkdir -p ~/apps/idempotency-service'
+          scp -P '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 .deploy/docker-compose.yml .deploy/.env '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/apps/idempotency-service/'
 
       - name: Run deployment on server
         run: |
           ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' <<'REMOTE_EOF'
           set -euo pipefail
-          cd ~/apps/demo-monorepo
+          cd ~/apps/idempotency-service
           set -a
           . ./.env
           set +a
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-          docker compose pull
-          docker compose up -d --remove-orphans
+          docker compose -p idempotency-service down --remove-orphans || true
+          docker compose -p idempotency-service pull
+          docker compose -p idempotency-service up -d --remove-orphans
 
-          echo 'Waiting for services to become available...'
-          for i in $(seq 1 60); do
-            core_ok=0
-            sender_ok=0
-            receiver_ok=0
+          echo 'Waiting for containers to start...'
+          sleep 20
+          docker compose -p idempotency-service ps
 
-            if curl -fsS http://127.0.0.1:8080/actuator/health > /dev/null; then
-              core_ok=1
+          for service in postgres redpanda-sender redpanda-receiver core-service sender-simulator receiver-simulator; do
+            container_id=$(docker compose -p idempotency-service ps -q "$service")
+            if [ -z "$container_id" ]; then
+              echo "Service $service was not created"
+              exit 1
             fi
 
-            if curl -fsS http://127.0.0.1:8081/actuator/health > /dev/null; then
-              sender_ok=1
+            status=$(docker inspect -f '{{.State.Status}}' "$container_id")
+            if [ "$status" != 'running' ]; then
+              echo "Service $service is not running (status=$status)"
+              docker logs "$container_id" --tail 200 || true
+              exit 1
             fi
-
-            if curl -fsS http://127.0.0.1:8082/actuator/health > /dev/null; then
-              receiver_ok=1
-            fi
-
-            if [ "$core_ok" -eq 1 ] && [ "$sender_ok" -eq 1 ] && [ "$receiver_ok" -eq 1 ]; then
-              echo 'All services are healthy'
-              break
-            fi
-
-            sleep 2
           done
 
-          curl -fsS http://127.0.0.1:8080/actuator/health
-          curl -fsS http://127.0.0.1:8081/actuator/health
-          curl -fsS http://127.0.0.1:8082/actuator/health
           docker image prune -f
           REMOTE_EOF

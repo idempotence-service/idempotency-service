@@ -1,0 +1,116 @@
+name: idempotency-service
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redpanda-sender:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --check=false
+      - --node-id
+      - "0"
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-sender:9092
+    expose:
+      - "9092"
+
+  redpanda-receiver:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --check=false
+      - --node-id
+      - "0"
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-receiver:9092
+    expose:
+      - "9092"
+
+  core-service:
+    image: ${CORE_SERVICE_IMAGE}
+    restart: unless-stopped
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      APP_ROUTES_FILE: /app/config/routes.yaml
+      APP_SECURITY_TOKENS_0_TOKEN: operator-token
+      APP_SECURITY_TOKENS_0_PRINCIPAL: operator
+      APP_SECURITY_TOKENS_0_ROLES_0: OPERATOR
+      APP_SECURITY_TOKENS_0_ROLES_1: ADMIN
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda-sender:
+        condition: service_started
+      redpanda-receiver:
+        condition: service_started
+    ports:
+      - "18080:8080"
+
+  sender-simulator:
+    image: ${SENDER_SIMULATOR_IMAGE}
+    restart: unless-stopped
+    environment:
+      APP_ROUTES_FILE: /app/config/routes.yaml
+    depends_on:
+      redpanda-sender:
+        condition: service_started
+      core-service:
+        condition: service_started
+    ports:
+      - "18081:8081"
+
+  receiver-simulator:
+    image: ${RECEIVER_SIMULATOR_IMAGE}
+    restart: unless-stopped
+    environment:
+      APP_ROUTES_FILE: /app/config/routes.yaml
+    depends_on:
+      redpanda-receiver:
+        condition: service_started
+      core-service:
+        condition: service_started
+    ports:
+      - "18082:8082"
+
+volumes:
+  postgres-data:

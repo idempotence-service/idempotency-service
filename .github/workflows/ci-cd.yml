@@ -1,0 +1,179 @@
+name: ci-cd
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  backend-test:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make Gradle wrapper executable
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - name: Run backend tests
+        run: ./gradlew test --no-daemon
+
+  build-and-push:
+    name: Build and push Docker images
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release/01.001.00'
+    needs:
+      - backend-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_base: ${{ steps.meta.outputs.image_base }}
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Calculate image names
+        id: meta
+        run: |
+          echo "image_base=$(echo ghcr.io/${GITHUB_REPOSITORY} | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
+          echo "image_tag=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push core-service image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./core-service/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_base }}/core-service:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_base }}/core-service:latest
+
+      - name: Build and push sender-simulator image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./sender-simulator/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_base }}/sender-simulator:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_base }}/sender-simulator:latest
+
+      - name: Build and push receiver-simulator image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./receiver-simulator/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_base }}/receiver-simulator:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_base }}/receiver-simulator:latest
+
+  deploy:
+    name: Deploy to VPS
+    if: github.event_name == 'push' && github.ref == 'refs/heads/release/01.001.00'
+    needs:
+      - build-and-push
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Prepare deployment files
+        env:
+          IMAGE_BASE: ${{ needs.build-and-push.outputs.image_base }}
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          mkdir -p .deploy
+          cp deploy/docker-compose.yml .deploy/docker-compose.yml
+          cat > .deploy/.env <<DEPLOY_ENV
+          CORE_SERVICE_IMAGE=${IMAGE_BASE}/core-service:${IMAGE_TAG}
+          SENDER_SIMULATOR_IMAGE=${IMAGE_BASE}/sender-simulator:${IMAGE_TAG}
+          RECEIVER_SIMULATOR_IMAGE=${IMAGE_BASE}/receiver-simulator:${IMAGE_TAG}
+          POSTGRES_DB=${POSTGRES_DB}
+          POSTGRES_USER=${POSTGRES_USER}
+          POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+          GHCR_USERNAME=${GHCR_USERNAME}
+          GHCR_TOKEN=${GHCR_TOKEN}
+          DEPLOY_ENV
+
+      - name: Configure SSH
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' '${{ secrets.DEPLOY_SSH_KEY }}' > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p '${{ secrets.DEPLOY_PORT }}' -H '${{ secrets.DEPLOY_HOST }}' >> ~/.ssh/known_hosts
+
+      - name: Copy deployment files to server
+        run: |
+          ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' 'mkdir -p ~/apps/idempotency-service'
+          scp -P '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 .deploy/docker-compose.yml .deploy/.env '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/apps/idempotency-service/'
+
+      - name: Run deployment on server
+        run: |
+          ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' <<'REMOTE_EOF'
+          set -euo pipefail
+          cd ~/apps/idempotency-service
+          set -a
+          . ./.env
+          set +a
+
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
+          docker compose -p idempotency-service down --remove-orphans || true
+          docker compose -p idempotency-service pull
+          docker compose -p idempotency-service up -d --remove-orphans
+
+          echo 'Waiting for containers to start...'
+          sleep 20
+          docker compose -p idempotency-service ps
+
+          for service in postgres redpanda-sender redpanda-receiver core-service sender-simulator receiver-simulator; do
+            container_id=$(docker compose -p idempotency-service ps -q "$service")
+            if [ -z "$container_id" ]; then
+              echo "Service $service was not created"
+              exit 1
+            fi
+
+            status=$(docker inspect -f '{{.State.Status}}' "$container_id")
+            if [ "$status" != 'running' ]; then
+              echo "Service $service is not running (status=$status)"
+              docker logs "$container_id" --tail 200 || true
+              exit 1
+            fi
+          done
+
+          docker image prune -f
+          REMOTE_EOF

@@ -3,7 +3,7 @@ name: ci-cd
 on:
   push:
     branches:
-      - release/01.001.00
+      - main
   pull_request:
 
 jobs:

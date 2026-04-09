@@ -10,6 +10,8 @@ import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 import ru.itmo.idempotency.core.repository.IdempotencyRepository;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Collection;
 
 @Service
@@ -25,6 +27,7 @@ public class IdempotencyService {
                                   RouteModels.RouteSnapshot snapshot,
                                   JsonNode headers,
                                   JsonNode payload) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         IdempotencyEntity entity = IdempotencyEntity.builder()
                 .globalKey(globalKey)
                 .sourceUid(sourceUid)
@@ -34,6 +37,8 @@ public class IdempotencyService {
                 .headers(headers)
                 .payload(payload)
                 .status(IdempotencyStatus.RESERVED)
+                .createDate(now)
+                .updateDate(now)
                 .build();
         return idempotencyRepository.saveAndFlush(entity);
     }

@@ -33,7 +33,7 @@ jobs:
 
   build-and-push:
     name: Build and push Docker images
-    if: github.event_name == 'push' && github.ref == 'refs/heads/release/01.001.00'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - backend-test
     runs-on: ubuntu-latest
@@ -95,7 +95,7 @@ jobs:
 
   deploy:
     name: Deploy to VPS
-    if: github.event_name == 'push' && github.ref == 'refs/heads/release/01.001.00'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - build-and-push
     runs-on: ubuntu-latest

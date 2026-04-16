@@ -91,6 +91,10 @@ services:
     restart: unless-stopped
     environment:
       APP_ROUTES_FILE: /app/config/routes.yaml
+      APP_SIMULATION_ENABLED: "true"
+      APP_SIMULATION_INTEGRATION: system1-to-system2
+      APP_SIMULATION_INTERVAL: 10s
+      APP_SIMULATION_DUPLICATE_EVERY: "3"
     depends_on:
       redpanda-sender:
         condition: service_started

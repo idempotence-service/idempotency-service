@@ -3,6 +3,7 @@ package ru.itmo.idempotency.core.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.idempotency.common.config.RouteModels;
@@ -27,6 +28,9 @@ public class IdempotencyService {
                                   RouteModels.RouteSnapshot snapshot,
                                   JsonNode headers,
                                   JsonNode payload) {
+        if (idempotencyRepository.existsById(globalKey)) {
+            throw new DataIntegrityViolationException("Duplicate globalKey: " + globalKey);
+        }
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         IdempotencyEntity entity = IdempotencyEntity.builder()
                 .globalKey(globalKey)

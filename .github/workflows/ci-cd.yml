@@ -160,6 +160,13 @@ jobs:
           sleep 20
           docker compose -p idempotency-service ps
 
+          echo 'Cleaning database and Kafka topics...'
+          docker exec idempotency-service-postgres-1 psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
+            "TRUNCATE TABLE event_audit, kafka_event_outbox, idempotency RESTART IDENTITY CASCADE;"
+          docker exec idempotency-service-redpanda-sender-1 rpk topic delete sender.events.inbound sender.events.request-out --brokers localhost:9092 || true
+          docker exec idempotency-service-redpanda-receiver-1 rpk topic delete receiver.events.unique receiver.events.reply --brokers localhost:9092 || true
+          echo 'Cleanup done'
+
           for service in postgres redpanda-sender redpanda-receiver core-service sender-simulator receiver-simulator; do
             container_id=$(docker compose -p idempotency-service ps -q "$service")
             if [ -z "$container_id" ]; then

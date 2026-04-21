@@ -119,6 +119,12 @@ jobs:
         run: |
           mkdir -p .deploy
           cp deploy/docker-compose.yml .deploy/docker-compose.yml
+          cp deploy/docker-compose.vps.yml .deploy/docker-compose.vps.yml
+          mkdir -p .deploy/prometheus .deploy/grafana/provisioning/datasources .deploy/grafana/provisioning/dashboards .deploy/grafana/dashboards
+          cp deploy/prometheus/prometheus.yml .deploy/prometheus/prometheus.yml
+          cp deploy/grafana/provisioning/datasources/prometheus.yml .deploy/grafana/provisioning/datasources/prometheus.yml
+          cp deploy/grafana/provisioning/dashboards/dashboards.yml .deploy/grafana/provisioning/dashboards/dashboards.yml
+          cp deploy/grafana/dashboards/core-service-observability.json .deploy/grafana/dashboards/core-service-observability.json
           cat > .deploy/.env <<DEPLOY_ENV
           CORE_SERVICE_IMAGE=${IMAGE_BASE}/core-service:${IMAGE_TAG}
           SENDER_SIMULATOR_IMAGE=${IMAGE_BASE}/sender-simulator:${IMAGE_TAG}
@@ -140,7 +146,7 @@ jobs:
       - name: Copy deployment files to server
         run: |
           ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' 'mkdir -p ~/apps/idempotency-service'
-          scp -P '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 .deploy/docker-compose.yml .deploy/.env '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/apps/idempotency-service/'
+          scp -r -P '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 .deploy/. '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/apps/idempotency-service/'
 
       - name: Run deployment on server
         run: |
@@ -152,16 +158,16 @@ jobs:
           set +a
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-          docker compose -p idempotency-service down --remove-orphans || true
-          docker compose -p idempotency-service pull
-          docker compose -p idempotency-service up -d --remove-orphans
+          docker compose -f docker-compose.vps.yml -p idempotency-service down --remove-orphans || true
+          docker compose -f docker-compose.vps.yml -p idempotency-service pull
+          docker compose -f docker-compose.vps.yml -p idempotency-service up -d --remove-orphans
 
           echo 'Waiting for containers to start...'
           sleep 20
-          docker compose -p idempotency-service ps
+          docker compose -f docker-compose.vps.yml -p idempotency-service ps
 
-          for service in postgres redpanda-sender redpanda-receiver core-service sender-simulator receiver-simulator; do
-            container_id=$(docker compose -p idempotency-service ps -q "$service")
+          for service in postgres redpanda-sender redpanda-receiver traefik core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator prometheus grafana; do
+            container_id=$(docker compose -f docker-compose.vps.yml -p idempotency-service ps -q "$service")
             if [ -z "$container_id" ]; then
               echo "Service $service was not created"
               exit 1
@@ -174,6 +180,9 @@ jobs:
               exit 1
             fi
           done
+
+          curl --fail --silent http://127.0.0.1:18080/actuator/health >/dev/null
+          curl --fail --silent http://127.0.0.1:19090/-/healthy >/dev/null
 
           docker image prune -f
           REMOTE_EOF

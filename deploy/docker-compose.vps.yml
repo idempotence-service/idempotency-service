@@ -1,0 +1,212 @@
+name: idempotency-service
+
+x-core-service-environment: &core-service-environment
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+  APP_ROUTES_FILE: /app/config/routes.yaml
+  APP_LISTENER_INBOUND_CONCURRENCY: "3"
+  APP_LISTENER_REPLY_CONCURRENCY: "3"
+  APP_SCHEDULER_BATCH_SIZE: "200"
+  APP_SCHEDULER_REPLY_TIMEOUT_FIXED_DELAY: 15s
+  APP_RESILIENCE_OUTBOX_RETRY_DELAY: 10s
+  APP_RESILIENCE_DELIVERY_RETRY_DELAY: 10s
+  APP_RESILIENCE_REPLY_TIMEOUT: 1m
+  APP_RESILIENCE_LEASE_DURATION: 30s
+  APP_RESILIENCE_MAX_ATTEMPTS: "5"
+  APP_SECURITY_TOKENS_0_TOKEN: operator-token
+  APP_SECURITY_TOKENS_0_PRINCIPAL: operator
+  APP_SECURITY_TOKENS_0_ROLES_0: OPERATOR
+  APP_SECURITY_TOKENS_0_ROLES_1: ADMIN
+
+x-core-service-common: &core-service-common
+  image: ${CORE_SERVICE_IMAGE}
+  restart: unless-stopped
+  environment:
+    <<: *core-service-environment
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redpanda-sender:
+      condition: service_started
+    redpanda-receiver:
+      condition: service_started
+  expose:
+    - "8080"
+  labels:
+    traefik.enable: "true"
+    traefik.http.routers.core-service.rule: PathPrefix(`/`)
+    traefik.http.routers.core-service.entrypoints: core
+    traefik.http.routers.core-service.service: core-service
+    traefik.http.services.core-service.loadbalancer.server.port: "8080"
+    traefik.http.services.core-service.loadbalancer.healthcheck.path: /actuator/health
+    traefik.http.services.core-service.loadbalancer.healthcheck.interval: 15s
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redpanda-sender:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --check=false
+      - --node-id
+      - "0"
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-sender:9092
+    expose:
+      - "9092"
+
+  redpanda-receiver:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 512M
+      - --reserve-memory
+      - 0M
+      - --check=false
+      - --node-id
+      - "0"
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-receiver:9092
+    expose:
+      - "9092"
+
+  traefik:
+    image: traefik:v3.0
+    restart: unless-stopped
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.core.address=:8080
+      - --api.dashboard=true
+      - --ping=true
+    ports:
+      - "18080:8080"
+      - "18088:8081"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - core-service-1
+      - core-service-2
+      - core-service-3
+
+  core-service-1:
+    <<: *core-service-common
+    environment:
+      <<: *core-service-environment
+      APP_INSTANCE_ID: core-service-1
+
+  core-service-2:
+    <<: *core-service-common
+    environment:
+      <<: *core-service-environment
+      APP_INSTANCE_ID: core-service-2
+
+  core-service-3:
+    <<: *core-service-common
+    environment:
+      <<: *core-service-environment
+      APP_INSTANCE_ID: core-service-3
+
+  sender-simulator:
+    image: ${SENDER_SIMULATOR_IMAGE}
+    restart: unless-stopped
+    environment:
+      APP_ROUTES_FILE: /app/config/routes.yaml
+      APP_SIMULATION_ENABLED: "true"
+      APP_SIMULATION_INTEGRATION: system1-to-system2
+      APP_SIMULATION_INTERVAL: 10s
+      APP_SIMULATION_DUPLICATE_EVERY: "3"
+    depends_on:
+      redpanda-sender:
+        condition: service_started
+      core-service-1:
+        condition: service_started
+    ports:
+      - "18081:8081"
+
+  receiver-simulator:
+    image: ${RECEIVER_SIMULATOR_IMAGE}
+    restart: unless-stopped
+    environment:
+      APP_ROUTES_FILE: /app/config/routes.yaml
+    depends_on:
+      redpanda-receiver:
+        condition: service_started
+      core-service-1:
+        condition: service_started
+    ports:
+      - "18082:8082"
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "19090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - core-service-1
+      - core-service-2
+      - core-service-3
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-change-me-grafana-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "13000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres-data:
+  prometheus-data:
+  grafana-data:

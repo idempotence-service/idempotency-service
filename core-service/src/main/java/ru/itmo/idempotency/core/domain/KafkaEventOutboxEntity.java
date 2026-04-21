@@ -68,6 +68,15 @@ public class KafkaEventOutboxEntity {
     @Column(name = "next_attempt_date", nullable = false)
     private OffsetDateTime nextAttemptDate;
 
+    @Column(name = "owner_id", length = 128)
+    private String ownerId;
+
+    @Column(name = "lease_until")
+    private OffsetDateTime leaseUntil;
+
+    @Column(name = "last_claim_date")
+    private OffsetDateTime lastClaimDate;
+
     @Column(name = "create_date", nullable = false)
     private OffsetDateTime createDate;
 

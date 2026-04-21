@@ -21,11 +21,6 @@ public class IdempotencySearchService {
     private final IdempotencyRepository idempotencyRepository;
 
     @Transactional
-    public Optional<IdempotencyEntity> acquireFirstNotLocked(IdempotencyStatus status) {
-        return idempotencyRepository.lockFirstByStatus(status.name());
-    }
-
-    @Transactional
     public Optional<IdempotencyEntity> acquireUniqueWaitIfLocked(String globalKey) {
         return idempotencyRepository.findByGlobalKeyForUpdate(globalKey);
     }

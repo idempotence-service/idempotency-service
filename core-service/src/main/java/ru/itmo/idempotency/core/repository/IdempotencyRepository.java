@@ -21,17 +21,19 @@ public interface IdempotencyRepository extends JpaRepository<IdempotencyEntity, 
             FROM idempotency
             WHERE status = :status
               AND next_attempt_date <= CURRENT_TIMESTAMP
-            ORDER BY create_date
+              AND (lease_until IS NULL OR lease_until < CURRENT_TIMESTAMP)
+            ORDER BY next_attempt_date, create_date
             LIMIT 1
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
-    Optional<IdempotencyEntity> lockFirstByStatus(@Param("status") String status);
+    Optional<IdempotencyEntity> lockFirstAvailableByStatus(@Param("status") String status);
 
     @Query(value = """
             SELECT *
             FROM idempotency
             WHERE status = :status
               AND update_date <= :threshold
+              AND (lease_until IS NULL OR lease_until < CURRENT_TIMESTAMP)
             ORDER BY update_date
             LIMIT 1
             FOR UPDATE SKIP LOCKED
@@ -44,6 +46,11 @@ public interface IdempotencyRepository extends JpaRepository<IdempotencyEntity, 
     Optional<IdempotencyEntity> findByGlobalKeyForUpdate(@Param("globalKey") String globalKey);
 
     Page<IdempotencyEntity> findByStatus(IdempotencyStatus status, Pageable pageable);
+
+    long countByStatus(IdempotencyStatus status);
+
+    @Query("select count(entity) from IdempotencyEntity entity where entity.ownerId is not null and entity.leaseUntil < :threshold")
+    long countExpiredLeases(@Param("threshold") OffsetDateTime threshold);
 
     List<IdempotencyEntity> findByStatusAndUpdateDateBefore(IdempotencyStatus status,
                                                             OffsetDateTime updateDate,

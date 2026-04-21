@@ -1,4 +1,5 @@
 app:
+  instance-id: test-core-service
   scheduler:
     outbox-fixed-delay: 1d
     delivery-fixed-delay: 1d

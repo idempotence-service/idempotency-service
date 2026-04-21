@@ -26,7 +26,7 @@ public class SecurityConfiguration {
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(configurer -> configurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .anyRequest().hasAnyRole("OPERATOR", "ADMIN")
                 )
                 .addFilterBefore(configuredTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)

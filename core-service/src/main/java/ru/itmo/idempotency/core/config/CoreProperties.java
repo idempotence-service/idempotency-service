@@ -21,6 +21,9 @@ public class CoreProperties {
     @NotBlank
     private String routesFile = "config/routes.yaml";
 
+    @NotBlank
+    private String instanceId = "core-service";
+
     @Valid
     private Scheduler scheduler = new Scheduler();
 
@@ -62,6 +65,7 @@ public class CoreProperties {
         private Duration outboxRetryDelay = Duration.ofSeconds(10);
         private Duration deliveryRetryDelay = Duration.ofSeconds(10);
         private Duration replyTimeout = Duration.ofMinutes(1);
+        private Duration leaseDuration = Duration.ofSeconds(30);
         @Min(1)
         private int maxAttempts = 5;
     }

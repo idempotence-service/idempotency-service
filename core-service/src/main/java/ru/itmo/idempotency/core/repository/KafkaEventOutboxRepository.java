@@ -13,7 +13,8 @@ public interface KafkaEventOutboxRepository extends JpaRepository<KafkaEventOutb
             SELECT *
             FROM kafka_event_outbox
             WHERE status = :status
-            ORDER BY create_date
+              AND next_attempt_date <= CURRENT_TIMESTAMP
+            ORDER BY next_attempt_date, create_date
             LIMIT 1
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)

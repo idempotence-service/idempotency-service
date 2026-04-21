@@ -61,6 +61,12 @@ public class IdempotencyEntity {
     @Column(name = "status_description", length = 255)
     private String statusDescription;
 
+    @Column(name = "retry_count", nullable = false)
+    private Integer retryCount;
+
+    @Column(name = "next_attempt_date", nullable = false)
+    private OffsetDateTime nextAttemptDate;
+
     @Column(name = "create_date", nullable = false)
     private OffsetDateTime createDate;
 
@@ -70,6 +76,8 @@ public class IdempotencyEntity {
     @PrePersist
     void prePersist() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        retryCount = retryCount == null ? 0 : retryCount;
+        nextAttemptDate = nextAttemptDate == null ? now : nextAttemptDate;
         createDate = createDate == null ? now : createDate;
         updateDate = updateDate == null ? now : updateDate;
     }

@@ -2,4 +2,8 @@ app:
   scheduler:
     outbox-fixed-delay: 1d
     delivery-fixed-delay: 1d
+    reply-timeout-fixed-delay: 7d
     cleanup-fixed-delay: 7d
+  listener:
+    inbound-concurrency: 1
+    reply-concurrency: 1

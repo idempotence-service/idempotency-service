@@ -34,7 +34,7 @@ public class ManualReviewService {
         if (entity.getStatus() != IdempotencyStatus.ERROR) {
             return "Задача уже перезапущена";
         }
-        idempotencyService.changeStatus(entity, IdempotencyStatus.RESERVED, null);
+        idempotencyService.restart(entity);
         return "Задача успешно перезапущена";
     }
 

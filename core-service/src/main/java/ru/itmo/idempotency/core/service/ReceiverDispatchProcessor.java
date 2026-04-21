@@ -3,13 +3,13 @@ package ru.itmo.idempotency.core.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.common.errors.RetriableException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.kafka.KafkaJsonProducerRegistry;
 import ru.itmo.idempotency.common.messaging.MessageModels;
+import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 
@@ -24,17 +24,20 @@ public class ReceiverDispatchProcessor {
     private final IdempotencyService idempotencyService;
     private final CoreJsonSupport coreJsonSupport;
     private final KafkaJsonProducerRegistry kafkaJsonProducerRegistry;
+    private final CoreProperties coreProperties;
     private final TransactionTemplate transactionTemplate;
 
     public ReceiverDispatchProcessor(IdempotencySearchService idempotencySearchService,
                                      IdempotencyService idempotencyService,
                                      CoreJsonSupport coreJsonSupport,
                                      KafkaJsonProducerRegistry kafkaJsonProducerRegistry,
+                                     CoreProperties coreProperties,
                                      PlatformTransactionManager transactionManager) {
         this.idempotencySearchService = idempotencySearchService;
         this.idempotencyService = idempotencyService;
         this.coreJsonSupport = coreJsonSupport;
         this.kafkaJsonProducerRegistry = kafkaJsonProducerRegistry;
+        this.coreProperties = coreProperties;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -76,16 +79,20 @@ public class ReceiverDispatchProcessor {
                 idempotencyService.changeStatus(entity, IdempotencyStatus.WAITING_ASYNC_RESPONSE, null);
             }
         } catch (Exception exception) {
-            if (isRetriable(exception)) {
+            String description = "Произошла ошибка при отправке события системе-получателю в "
+                    + snapshot.replyIn().topic() + ": " + exception.getMessage();
+            if (KafkaExceptionClassifier.isRetriable(exception)) {
+                idempotencyService.scheduleRetry(
+                        entity,
+                        description,
+                        coreProperties.getResilience().getDeliveryRetryDelay(),
+                        coreProperties.getResilience().getMaxAttempts()
+                );
                 log.warn("Temporary delivery issue for {}", entity.getGlobalKey(), exception);
-                return false;
+                return true;
             }
 
-            idempotencyService.markAsError(
-                    entity,
-                    "Произошла ошибка при отправке события системе-получателю в "
-                            + snapshot.replyIn().topic() + ": " + exception.getMessage()
-            );
+            idempotencyService.markAsError(entity, description);
             log.warn("Permanent delivery issue for {}", entity.getGlobalKey(), exception);
         }
 
@@ -106,16 +113,5 @@ public class ReceiverDispatchProcessor {
         }
 
         return coreJsonSupport.toMap(headers);
-    }
-
-    private boolean isRetriable(Throwable throwable) {
-        Throwable current = throwable;
-        while (current != null) {
-            if (current instanceof RetriableException) {
-                return true;
-            }
-            current = current.getCause();
-        }
-        return false;
     }
 }

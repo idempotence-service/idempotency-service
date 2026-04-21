@@ -20,11 +20,24 @@ public interface IdempotencyRepository extends JpaRepository<IdempotencyEntity, 
             SELECT *
             FROM idempotency
             WHERE status = :status
+              AND next_attempt_date <= CURRENT_TIMESTAMP
             ORDER BY create_date
             LIMIT 1
             FOR UPDATE SKIP LOCKED
             """, nativeQuery = true)
     Optional<IdempotencyEntity> lockFirstByStatus(@Param("status") String status);
+
+    @Query(value = """
+            SELECT *
+            FROM idempotency
+            WHERE status = :status
+              AND update_date <= :threshold
+            ORDER BY update_date
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            """, nativeQuery = true)
+    Optional<IdempotencyEntity> lockFirstByStatusAndUpdateDateBefore(@Param("status") String status,
+                                                                     @Param("threshold") OffsetDateTime threshold);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select entity from IdempotencyEntity entity where entity.globalKey = :globalKey")

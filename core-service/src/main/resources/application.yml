@@ -31,8 +31,17 @@ app:
   scheduler:
     outbox-fixed-delay: 5s
     delivery-fixed-delay: 5s
+    reply-timeout-fixed-delay: 15s
     cleanup-fixed-delay: 1d
     batch-size: 100
+  listener:
+    inbound-concurrency: 3
+    reply-concurrency: 3
+  resilience:
+    outbox-retry-delay: 10s
+    delivery-retry-delay: 10s
+    reply-timeout: 1m
+    max-attempts: 5
   cleanup:
     retention: 7d
     batch-size: 500

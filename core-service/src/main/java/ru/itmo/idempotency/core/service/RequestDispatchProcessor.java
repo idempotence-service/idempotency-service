@@ -7,6 +7,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.kafka.KafkaJsonProducerRegistry;
 import ru.itmo.idempotency.common.messaging.MessageModels;
+import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.KafkaEventOutboxEntity;
 import ru.itmo.idempotency.core.domain.OutboxStatus;
 
@@ -20,17 +21,20 @@ public class RequestDispatchProcessor {
     private final KafkaEventOutboxService kafkaEventOutboxService;
     private final CoreJsonSupport coreJsonSupport;
     private final KafkaJsonProducerRegistry kafkaJsonProducerRegistry;
+    private final CoreProperties coreProperties;
     private final TransactionTemplate transactionTemplate;
 
     public RequestDispatchProcessor(KafkaEventOutboxSearchService kafkaEventOutboxSearchService,
                                     KafkaEventOutboxService kafkaEventOutboxService,
                                     CoreJsonSupport coreJsonSupport,
                                     KafkaJsonProducerRegistry kafkaJsonProducerRegistry,
+                                    CoreProperties coreProperties,
                                     PlatformTransactionManager transactionManager) {
         this.kafkaEventOutboxSearchService = kafkaEventOutboxSearchService;
         this.kafkaEventOutboxService = kafkaEventOutboxService;
         this.coreJsonSupport = coreJsonSupport;
         this.kafkaJsonProducerRegistry = kafkaJsonProducerRegistry;
+        this.coreProperties = coreProperties;
         this.transactionTemplate = new TransactionTemplate(transactionManager);
     }
 
@@ -73,11 +77,20 @@ public class RequestDispatchProcessor {
             );
             kafkaEventOutboxService.changeStatus(outboxEntity, OutboxStatus.DONE, null);
         } catch (Exception exception) {
-            kafkaEventOutboxService.markAsError(
-                    outboxEntity,
-                    "Произошла ошибка при отправке ответа в " + snapshot.requestOut().topic() + ": " + exception.getMessage()
-            );
-            log.warn("Failed to dispatch technical response for {}", outboxEntity.getGlobalKey(), exception);
+            String description = "Произошла ошибка при отправке ответа в " + snapshot.requestOut().topic() + ": " + exception.getMessage();
+            if (KafkaExceptionClassifier.isRetriable(exception)) {
+                kafkaEventOutboxService.scheduleRetry(
+                        outboxEntity,
+                        description,
+                        coreProperties.getResilience().getOutboxRetryDelay(),
+                        coreProperties.getResilience().getMaxAttempts()
+                );
+                log.warn("Temporary technical response dispatch failure for {}", outboxEntity.getGlobalKey(), exception);
+                return true;
+            }
+
+            kafkaEventOutboxService.markAsError(outboxEntity, description);
+            log.warn("Permanent technical response dispatch failure for {}", outboxEntity.getGlobalKey(), exception);
         }
         return true;
     }

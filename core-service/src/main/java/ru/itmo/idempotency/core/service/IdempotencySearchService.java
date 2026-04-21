@@ -30,6 +30,14 @@ public class IdempotencySearchService {
         return idempotencyRepository.findByGlobalKeyForUpdate(globalKey);
     }
 
+    @Transactional
+    public Optional<IdempotencyEntity> acquireFirstTimedOutReply(OffsetDateTime threshold) {
+        return idempotencyRepository.lockFirstByStatusAndUpdateDateBefore(
+                IdempotencyStatus.WAITING_ASYNC_RESPONSE.name(),
+                threshold
+        );
+    }
+
     @Transactional(readOnly = true)
     public List<IdempotencyEntity> findCommittedBatchForCleanup(OffsetDateTime threshold, int batchSize) {
         return idempotencyRepository.findByStatusAndUpdateDateBefore(

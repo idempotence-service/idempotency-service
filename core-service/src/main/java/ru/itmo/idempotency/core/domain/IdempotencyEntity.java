@@ -6,15 +6,20 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Builder.Default;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.springframework.data.domain.Persistable;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
@@ -27,7 +32,7 @@ import java.time.ZoneOffset;
 @AllArgsConstructor
 @Entity
 @Table(name = "idempotency")
-public class IdempotencyEntity {
+public class IdempotencyEntity implements Persistable<String> {
 
     @Id
     @Column(name = "global_key", nullable = false, length = 512)
@@ -61,15 +66,46 @@ public class IdempotencyEntity {
     @Column(name = "status_description", length = 255)
     private String statusDescription;
 
+    @Column(name = "retry_count", nullable = false)
+    private Integer retryCount;
+
+    @Column(name = "next_attempt_date", nullable = false)
+    private OffsetDateTime nextAttemptDate;
+
+    @Column(name = "owner_id", length = 128)
+    private String ownerId;
+
+    @Column(name = "lease_until")
+    private OffsetDateTime leaseUntil;
+
+    @Column(name = "last_claim_date")
+    private OffsetDateTime lastClaimDate;
+
     @Column(name = "create_date", nullable = false)
     private OffsetDateTime createDate;
 
     @Column(name = "update_date", nullable = false)
     private OffsetDateTime updateDate;
 
+    @Transient
+    @Default
+    private boolean newEntity = true;
+
+    @Override
+    public String getId() {
+        return globalKey;
+    }
+
+    @Override
+    public boolean isNew() {
+        return newEntity;
+    }
+
     @PrePersist
     void prePersist() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        retryCount = retryCount == null ? 0 : retryCount;
+        nextAttemptDate = nextAttemptDate == null ? now : nextAttemptDate;
         createDate = createDate == null ? now : createDate;
         updateDate = updateDate == null ? now : updateDate;
     }
@@ -77,5 +113,11 @@ public class IdempotencyEntity {
     @PreUpdate
     void preUpdate() {
         updateDate = OffsetDateTime.now(ZoneOffset.UTC);
+    }
+
+    @PostPersist
+    @PostLoad
+    void markNotNew() {
+        newEntity = false;
     }
 }

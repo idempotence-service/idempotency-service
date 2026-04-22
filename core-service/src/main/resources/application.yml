@@ -21,18 +21,46 @@ spring:
     locations: classpath:db/migration
 
 management:
+  endpoint:
+    health:
+      access: read_only
+    info:
+      access: read_only
+    metrics:
+      access: read_only
   endpoints:
+    access:
+      default: none
     web:
       exposure:
         include: health,info,metrics
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      instance: ${app.instance-id}
+    distribution:
+      percentiles-histogram:
+        idempotency.delivery.duration: true
+        idempotency.outbox.duration: true
 
 app:
   routes-file: config/routes.yaml
+  instance-id: ${HOSTNAME:${spring.application.name}-local}
   scheduler:
     outbox-fixed-delay: 5s
     delivery-fixed-delay: 5s
+    reply-timeout-fixed-delay: 15s
     cleanup-fixed-delay: 1d
     batch-size: 100
+  listener:
+    inbound-concurrency: 3
+    reply-concurrency: 3
+  resilience:
+    outbox-retry-delay: 10s
+    delivery-retry-delay: 10s
+    reply-timeout: 1m
+    lease-duration: 30s
+    max-attempts: 5
   cleanup:
     retention: 7d
     batch-size: 500

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import ru.itmo.idempotency.common.config.RouteCatalog;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.kafka.KafkaClientSupport;
+import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.service.AsyncReplyProcessor;
 import ru.itmo.idempotency.core.service.InboundMessageProcessor;
 
@@ -25,16 +26,19 @@ public class DynamicKafkaListenerRegistrar implements SmartLifecycle {
     private final RouteCatalog routeCatalog;
     private final InboundMessageProcessor inboundMessageProcessor;
     private final AsyncReplyProcessor asyncReplyProcessor;
+    private final CoreProperties coreProperties;
     private final List<ConcurrentMessageListenerContainer<String, String>> containers = new ArrayList<>();
 
     private boolean running;
 
     public DynamicKafkaListenerRegistrar(RouteCatalog routeCatalog,
                                          InboundMessageProcessor inboundMessageProcessor,
-                                         AsyncReplyProcessor asyncReplyProcessor) {
+                                         AsyncReplyProcessor asyncReplyProcessor,
+                                         CoreProperties coreProperties) {
         this.routeCatalog = routeCatalog;
         this.inboundMessageProcessor = inboundMessageProcessor;
         this.asyncReplyProcessor = asyncReplyProcessor;
+        this.coreProperties = coreProperties;
     }
 
     @Override
@@ -48,6 +52,7 @@ public class DynamicKafkaListenerRegistrar implements SmartLifecycle {
                     route.inbound(),
                     route.inbound().group() != null ? route.inbound().group() : "core-inbound-" + route.integration(),
                     "core-inbound-" + route.integration(),
+                    coreProperties.getListener().getInboundConcurrency(),
                     record -> inboundMessageProcessor.handle(route, record.value())
             ));
 
@@ -56,6 +61,7 @@ public class DynamicKafkaListenerRegistrar implements SmartLifecycle {
                         route.replyOut(),
                         route.replyOut().group() != null ? route.replyOut().group() : "core-reply-" + route.integration(),
                         "core-reply-" + route.integration(),
+                        coreProperties.getListener().getReplyConcurrency(),
                         record -> asyncReplyProcessor.handle(route, record.value())
                 ));
             }
@@ -86,6 +92,7 @@ public class DynamicKafkaListenerRegistrar implements SmartLifecycle {
     private ConcurrentMessageListenerContainer<String, String> createContainer(RouteModels.RouteChannel channel,
                                                                                 String groupId,
                                                                                 String clientIdPrefix,
+                                                                                int concurrency,
                                                                                 java.util.function.Consumer<ConsumerRecord<String, String>> processor) {
         DefaultKafkaConsumerFactory<String, String> consumerFactory = new DefaultKafkaConsumerFactory<>(
                 KafkaClientSupport.consumerProperties(channel.bootstrapServers(), groupId, clientIdPrefix)
@@ -104,6 +111,7 @@ public class DynamicKafkaListenerRegistrar implements SmartLifecycle {
         });
 
         ConcurrentMessageListenerContainer<String, String> container = new ConcurrentMessageListenerContainer<>(consumerFactory, containerProperties);
+        container.setConcurrency(concurrency);
         container.setCommonErrorHandler(commonErrorHandler());
         container.getContainerProperties().setMissingTopicsFatal(false);
         return container;

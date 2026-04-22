@@ -102,7 +102,7 @@ services:
         condition: service_started
     ports:
       - "18081:8081"
-
+ 
   receiver-simulator:
     image: ${RECEIVER_SIMULATOR_IMAGE}
     restart: unless-stopped

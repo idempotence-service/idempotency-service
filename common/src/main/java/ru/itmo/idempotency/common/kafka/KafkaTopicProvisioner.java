@@ -16,22 +16,21 @@ import java.util.concurrent.ExecutionException;
 @Component
 public class KafkaTopicProvisioner {
 
-    public void ensureTopics(Collection<RouteModels.RouteChannel> channels) {
-        Map<String, NewTopic> uniqueTopics = new LinkedHashMap<>();
-        for (RouteModels.RouteChannel channel : channels) {
-            if (channel == null) {
-                continue;
-            }
-            uniqueTopics.put(channel.bootstrapServers() + "::" + channel.topic(), new NewTopic(channel.topic(), 1, (short) 1));
-        }
+    private static final int DEFAULT_PARTITIONS = 1;
+    private static final short DEFAULT_REPLICATION_FACTOR = 1;
 
+    public void ensureTopics(Collection<RouteModels.RouteChannel> channels) {
         Map<String, Map<String, NewTopic>> byBootstrap = new LinkedHashMap<>();
         for (RouteModels.RouteChannel channel : channels) {
             if (channel == null) {
                 continue;
             }
             byBootstrap.computeIfAbsent(channel.bootstrapServers(), ignored -> new LinkedHashMap<>())
-                    .putIfAbsent(channel.topic(), new NewTopic(channel.topic(), 1, (short) 1));
+                    .putIfAbsent(channel.topic(), new NewTopic(
+                            channel.topic(),
+                            channel.partitions() != null ? channel.partitions() : DEFAULT_PARTITIONS,
+                            channel.replicationFactor() != null ? channel.replicationFactor() : DEFAULT_REPLICATION_FACTOR
+                    ));
         }
 
         byBootstrap.forEach(this::createTopicsForBootstrap);

@@ -21,13 +21,16 @@ public class IdempotencySearchService {
     private final IdempotencyRepository idempotencyRepository;
 
     @Transactional
-    public Optional<IdempotencyEntity> acquireFirstNotLocked(IdempotencyStatus status) {
-        return idempotencyRepository.lockFirstByStatus(status.name());
+    public Optional<IdempotencyEntity> acquireUniqueWaitIfLocked(String globalKey) {
+        return idempotencyRepository.findByGlobalKeyForUpdate(globalKey);
     }
 
     @Transactional
-    public Optional<IdempotencyEntity> acquireUniqueWaitIfLocked(String globalKey) {
-        return idempotencyRepository.findByGlobalKeyForUpdate(globalKey);
+    public Optional<IdempotencyEntity> acquireFirstTimedOutReply(OffsetDateTime threshold) {
+        return idempotencyRepository.lockFirstByStatusAndUpdateDateBefore(
+                IdempotencyStatus.WAITING_ASYNC_RESPONSE.name(),
+                threshold
+        );
     }
 
     @Transactional(readOnly = true)

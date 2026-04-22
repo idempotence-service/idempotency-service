@@ -62,6 +62,21 @@ public class KafkaEventOutboxEntity {
     @Column(name = "result_description", length = 255)
     private String resultDescription;
 
+    @Column(name = "retry_count", nullable = false)
+    private Integer retryCount;
+
+    @Column(name = "next_attempt_date", nullable = false)
+    private OffsetDateTime nextAttemptDate;
+
+    @Column(name = "owner_id", length = 128)
+    private String ownerId;
+
+    @Column(name = "lease_until")
+    private OffsetDateTime leaseUntil;
+
+    @Column(name = "last_claim_date")
+    private OffsetDateTime lastClaimDate;
+
     @Column(name = "create_date", nullable = false)
     private OffsetDateTime createDate;
 
@@ -71,6 +86,8 @@ public class KafkaEventOutboxEntity {
     @PrePersist
     void prePersist() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        retryCount = retryCount == null ? 0 : retryCount;
+        nextAttemptDate = nextAttemptDate == null ? now : nextAttemptDate;
         createDate = createDate == null ? now : createDate;
         updateDate = updateDate == null ? now : updateDate;
     }

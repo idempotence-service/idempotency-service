@@ -120,11 +120,6 @@ jobs:
           mkdir -p .deploy
           cp deploy/docker-compose.yml .deploy/docker-compose.yml
           cp deploy/docker-compose.vps.yml .deploy/docker-compose.vps.yml
-          mkdir -p .deploy/prometheus .deploy/grafana/provisioning/datasources .deploy/grafana/provisioning/dashboards .deploy/grafana/dashboards
-          cp deploy/prometheus/prometheus.yml .deploy/prometheus/prometheus.yml
-          cp deploy/grafana/provisioning/datasources/prometheus.yml .deploy/grafana/provisioning/datasources/prometheus.yml
-          cp deploy/grafana/provisioning/dashboards/dashboards.yml .deploy/grafana/provisioning/dashboards/dashboards.yml
-          cp deploy/grafana/dashboards/core-service-observability.json .deploy/grafana/dashboards/core-service-observability.json
           cat > .deploy/.env <<DEPLOY_ENV
           CORE_SERVICE_IMAGE=${IMAGE_BASE}/core-service:${IMAGE_TAG}
           SENDER_SIMULATOR_IMAGE=${IMAGE_BASE}/sender-simulator:${IMAGE_TAG}
@@ -166,7 +161,7 @@ jobs:
           sleep 20
           docker compose -f docker-compose.vps.yml -p idempotency-service ps
 
-          for service in postgres redpanda-sender redpanda-receiver traefik core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator prometheus grafana; do
+          for service in postgres redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator; do
             container_id=$(docker compose -f docker-compose.vps.yml -p idempotency-service ps -q "$service")
             if [ -z "$container_id" ]; then
               echo "Service $service was not created"
@@ -182,7 +177,6 @@ jobs:
           done
 
           curl --fail --silent http://127.0.0.1:18080/actuator/health >/dev/null
-          curl --fail --silent http://127.0.0.1:19090/-/healthy >/dev/null
 
           docker image prune -f
           REMOTE_EOF

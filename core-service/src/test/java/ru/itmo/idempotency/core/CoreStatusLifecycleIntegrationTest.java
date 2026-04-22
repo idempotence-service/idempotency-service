@@ -90,6 +90,7 @@ class CoreStatusLifecycleIntegrationTest {
         registry.add("spring.flyway.enabled", () -> "false");
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
         registry.add("app.routes-file", () -> createRoutesFile(System.getProperty(SPRING_EMBEDDED_KAFKA_BROKERS)));
+        registry.add("app.resilience.delivery-retry-delay", () -> "5s");
     }
 
     @BeforeEach
@@ -134,10 +135,16 @@ class CoreStatusLifecycleIntegrationTest {
         );
 
         waitForCondition(() -> idempotencyRepository.findById(globalKey)
-                .map(entity -> entity.getStatus() == IdempotencyStatus.RESERVED)
+                .map(entity -> entity.getStatus() == IdempotencyStatus.RESERVED && entity.getRetryCount() == 1)
                 .orElse(false));
 
-        receiverDispatchProcessor.processBatch(10);
+        Assertions.assertEquals(0, receiverDispatchProcessor.processBatch(10));
+
+        IdempotencyEntity scheduledForRetry = idempotencyRepository.findById(globalKey).orElseThrow();
+        scheduledForRetry.setNextAttemptDate(OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1));
+        idempotencyRepository.saveAndFlush(scheduledForRetry);
+
+        Assertions.assertEquals(1, receiverDispatchProcessor.processBatch(10));
         List<MessageModels.MessageEnvelope> resentMessages = consumeMessages(receiverUniqueConsumer, RECEIVER_UNIQUE_TOPIC, 1, Duration.ofSeconds(10));
         Assertions.assertEquals(uid, resentMessages.getFirst().headers().get("uid"));
 

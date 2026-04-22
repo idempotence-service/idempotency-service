@@ -6,15 +6,20 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PostPersist;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Builder.Default;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
+import org.springframework.data.domain.Persistable;
 import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
@@ -27,7 +32,7 @@ import java.time.ZoneOffset;
 @AllArgsConstructor
 @Entity
 @Table(name = "idempotency")
-public class IdempotencyEntity {
+public class IdempotencyEntity implements Persistable<String> {
 
     @Id
     @Column(name = "global_key", nullable = false, length = 512)
@@ -82,6 +87,20 @@ public class IdempotencyEntity {
     @Column(name = "update_date", nullable = false)
     private OffsetDateTime updateDate;
 
+    @Transient
+    @Default
+    private boolean newEntity = true;
+
+    @Override
+    public String getId() {
+        return globalKey;
+    }
+
+    @Override
+    public boolean isNew() {
+        return newEntity;
+    }
+
     @PrePersist
     void prePersist() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -94,5 +113,11 @@ public class IdempotencyEntity {
     @PreUpdate
     void preUpdate() {
         updateDate = OffsetDateTime.now(ZoneOffset.UTC);
+    }
+
+    @PostPersist
+    @PostLoad
+    void markNotNew() {
+        newEntity = false;
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.messaging.MessageModels;
+import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 
@@ -21,6 +22,7 @@ public class AsyncReplyProcessor {
     private final EventAuditService eventAuditService;
     private final IdempotencySearchService idempotencySearchService;
     private final IdempotencyService idempotencyService;
+    private final CoreProperties coreProperties;
     private final CoreMetrics coreMetrics;
     private final MdcContextSupport mdcContextSupport;
 
@@ -66,12 +68,17 @@ public class AsyncReplyProcessor {
         }
 
         if (payload.path("needResend").asBoolean(false)) {
-            idempotencyService.changeStatus(
+            IdempotencyEntity updated = idempotencyService.scheduleRetry(
                     entity,
-                    IdempotencyStatus.RESERVED,
-                    "Система-получатель запросила повторную отправку события: " + resultDescription
+                    "Система-получатель запросила повторную отправку события: " + resultDescription,
+                    coreProperties.getResilience().getDeliveryRetryDelay(),
+                    coreProperties.getResilience().getMaxAttempts()
             );
-            coreMetrics.recordAsyncReplyResend();
+            if (updated.getStatus() == IdempotencyStatus.RESERVED) {
+                coreMetrics.recordAsyncReplyResend();
+            } else {
+                coreMetrics.recordAsyncReplyFailure();
+            }
             return;
         }
 

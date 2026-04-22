@@ -78,7 +78,7 @@ class CoreLeaseClaimingIntegrationTest {
                 .payload(objectMapper.readTree("{}"))
                 .status(IdempotencyStatus.RESERVED)
                 .retryCount(0)
-                .nextAttemptDate(OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1))
+                .nextAttemptDate(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1))
                 .build());
 
         Assertions.assertTrue(idempotencyService.claimNextReserved("worker-a", Duration.ofSeconds(30)).isPresent());
@@ -109,7 +109,7 @@ class CoreLeaseClaimingIntegrationTest {
                 .result(ProcessingResult.SUCCESS)
                 .resultDescription("ok")
                 .retryCount(0)
-                .nextAttemptDate(OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1))
+                .nextAttemptDate(OffsetDateTime.now(ZoneOffset.UTC).minusMinutes(1))
                 .build());
 
         Assertions.assertTrue(kafkaEventOutboxService.claimNextNew("worker-a", Duration.ofSeconds(30)).isPresent());

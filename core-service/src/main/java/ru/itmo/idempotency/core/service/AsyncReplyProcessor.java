@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.messaging.MessageModels;
+import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 
@@ -21,8 +22,12 @@ public class AsyncReplyProcessor {
     private final EventAuditService eventAuditService;
     private final IdempotencySearchService idempotencySearchService;
     private final IdempotencyService idempotencyService;
+    private final CoreProperties coreProperties;
+    private final CoreMetrics coreMetrics;
+    private final MdcContextSupport mdcContextSupport;
 
     public void handle(RouteModels.RouteSnapshot route, String rawMessage) {
+        try (MdcContextSupport.Scope ignored = mdcContextSupport.open(null, null, route.integration(), null)) {
         MessageModels.MessageEnvelope envelope;
         try {
             envelope = coreJsonSupport.parseEnvelope(rawMessage);
@@ -39,7 +44,10 @@ public class AsyncReplyProcessor {
             return;
         }
 
-        processReply(route, globalKey, payload, coreJsonSupport.toJsonNode(headers));
+        try (MdcContextSupport.Scope replyScope = mdcContextSupport.open(globalKey, null, route.integration(), null)) {
+            processReply(route, globalKey, payload, coreJsonSupport.toJsonNode(headers));
+        }
+    }
     }
 
     @Transactional
@@ -47,6 +55,7 @@ public class AsyncReplyProcessor {
         IdempotencyEntity entity = idempotencySearchService.acquireUniqueWaitIfLocked(globalKey).orElse(null);
         if (entity == null || entity.getStatus() != IdempotencyStatus.WAITING_ASYNC_RESPONSE) {
             eventAuditService.save(globalKey, route, AuditReasons.ORPHAN_REPLY, headers, payload);
+            coreMetrics.recordAsyncReplyOrphan();
             return;
         }
 
@@ -54,24 +63,33 @@ public class AsyncReplyProcessor {
         String resultDescription = payload.path("resultDescription").asText(null);
         if ("SUCCESS".equalsIgnoreCase(result)) {
             idempotencyService.changeStatus(entity, IdempotencyStatus.COMMITTED, resultDescription);
+            coreMetrics.recordAsyncReplySuccess();
             return;
         }
 
         if (payload.path("needResend").asBoolean(false)) {
-            idempotencyService.changeStatus(
+            IdempotencyEntity updated = idempotencyService.scheduleRetry(
                     entity,
-                    IdempotencyStatus.RESERVED,
-                    "Система-получатель запросила повторную отправку события: " + resultDescription
+                    "Система-получатель запросила повторную отправку события: " + resultDescription,
+                    coreProperties.getResilience().getDeliveryRetryDelay(),
+                    coreProperties.getResilience().getMaxAttempts()
             );
+            if (updated.getStatus() == IdempotencyStatus.RESERVED) {
+                coreMetrics.recordAsyncReplyResend();
+            } else {
+                coreMetrics.recordAsyncReplyFailure();
+            }
             return;
         }
 
         idempotencyService.markAsError(entity, "Ошибка обработки события системой-получателем: " + resultDescription);
+        coreMetrics.recordAsyncReplyFailure();
     }
 
     @Transactional
     protected void saveInvalidReply(RouteModels.RouteSnapshot route, String rawMessage) {
         log.warn("Invalid async reply received for route {}", route.integration());
         eventAuditService.save(null, route, AuditReasons.INVALID_RECEIVER_REPLY, null, coreJsonSupport.safeRawPayload(rawMessage));
+        coreMetrics.recordAsyncReplyInvalid();
     }
 }

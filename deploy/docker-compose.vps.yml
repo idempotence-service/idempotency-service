@@ -1,5 +1,39 @@
 name: idempotency-service
 
+x-core-service-environment: &core-service-environment
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+  APP_ROUTES_FILE: /app/config/routes.yaml
+  APP_LISTENER_INBOUND_CONCURRENCY: "3"
+  APP_LISTENER_REPLY_CONCURRENCY: "3"
+  APP_SCHEDULER_BATCH_SIZE: "200"
+  APP_SCHEDULER_REPLY_TIMEOUT_FIXED_DELAY: 15s
+  APP_RESILIENCE_OUTBOX_RETRY_DELAY: 10s
+  APP_RESILIENCE_DELIVERY_RETRY_DELAY: 10s
+  APP_RESILIENCE_REPLY_TIMEOUT: 1m
+  APP_RESILIENCE_LEASE_DURATION: 30s
+  APP_RESILIENCE_MAX_ATTEMPTS: "5"
+  APP_SECURITY_TOKENS_0_TOKEN: operator-token
+  APP_SECURITY_TOKENS_0_PRINCIPAL: operator
+  APP_SECURITY_TOKENS_0_ROLES_0: OPERATOR
+  APP_SECURITY_TOKENS_0_ROLES_1: ADMIN
+
+x-core-service-common: &core-service-common
+  image: ${CORE_SERVICE_IMAGE}
+  restart: unless-stopped
+  environment:
+    <<: *core-service-environment
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redpanda-sender:
+      condition: service_started
+    redpanda-receiver:
+      condition: service_started
+  expose:
+    - "8080"
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -64,35 +98,25 @@ services:
     expose:
       - "9092"
 
-  core-service:
-    image: ${CORE_SERVICE_IMAGE}
-    restart: unless-stopped
+  core-service-1:
+    <<: *core-service-common
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
-      APP_ROUTES_FILE: /app/config/routes.yaml
-      APP_LISTENER_INBOUND_CONCURRENCY: "3"
-      APP_LISTENER_REPLY_CONCURRENCY: "3"
-      APP_SCHEDULER_BATCH_SIZE: "200"
-      APP_SCHEDULER_REPLY_TIMEOUT_FIXED_DELAY: 15s
-      APP_RESILIENCE_OUTBOX_RETRY_DELAY: 10s
-      APP_RESILIENCE_DELIVERY_RETRY_DELAY: 10s
-      APP_RESILIENCE_REPLY_TIMEOUT: 1m
-      APP_RESILIENCE_MAX_ATTEMPTS: "5"
-      APP_SECURITY_TOKENS_0_TOKEN: operator-token
-      APP_SECURITY_TOKENS_0_PRINCIPAL: operator
-      APP_SECURITY_TOKENS_0_ROLES_0: OPERATOR
-      APP_SECURITY_TOKENS_0_ROLES_1: ADMIN
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redpanda-sender:
-        condition: service_started
-      redpanda-receiver:
-        condition: service_started
+      <<: *core-service-environment
+      APP_INSTANCE_ID: core-service-1
     ports:
       - "18080:8080"
+
+  core-service-2:
+    <<: *core-service-common
+    environment:
+      <<: *core-service-environment
+      APP_INSTANCE_ID: core-service-2
+
+  core-service-3:
+    <<: *core-service-common
+    environment:
+      <<: *core-service-environment
+      APP_INSTANCE_ID: core-service-3
 
   sender-simulator:
     image: ${SENDER_SIMULATOR_IMAGE}
@@ -106,11 +130,11 @@ services:
     depends_on:
       redpanda-sender:
         condition: service_started
-      core-service:
+      core-service-1:
         condition: service_started
     ports:
       - "18081:8081"
- 
+
   receiver-simulator:
     image: ${RECEIVER_SIMULATOR_IMAGE}
     restart: unless-stopped
@@ -119,7 +143,7 @@ services:
     depends_on:
       redpanda-receiver:
         condition: service_started
-      core-service:
+      core-service-1:
         condition: service_started
     ports:
       - "18082:8082"

@@ -71,12 +71,6 @@ public class RouteCatalog {
             return null;
         }
         String group = endpointConfig.group() != null ? endpointConfig.group() : fallbackGroup;
-        return new RouteModels.RouteChannel(
-                endpointConfig.host(),
-                endpointConfig.topic(),
-                group,
-                endpointConfig.partitions(),
-                endpointConfig.replicationFactor()
-        );
+        return new RouteModels.RouteChannel(endpointConfig.host(), endpointConfig.topic(), group);
     }
 }

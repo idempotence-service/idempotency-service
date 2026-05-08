@@ -33,22 +33,14 @@ public final class RouteModels {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
-    public record RouteEndpointConfig(String host,
-                                      String topic,
-                                      String group,
-                                      Integer partitions,
-                                      Short replicationFactor) {
+    public record RouteEndpointConfig(String host, String topic, String group) {
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record RouteIdempotencyConfig(Boolean enabled) {
     }
 
-    public record RouteChannel(String bootstrapServers,
-                               String topic,
-                               String group,
-                               Integer partitions,
-                               Short replicationFactor) {
+    public record RouteChannel(String bootstrapServers, String topic, String group) {
     }
 
     public record RouteSnapshot(String service,

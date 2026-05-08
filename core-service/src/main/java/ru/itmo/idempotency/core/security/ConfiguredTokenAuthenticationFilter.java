@@ -12,6 +12,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import ru.itmo.idempotency.core.config.CoreProperties;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 public class ConfiguredTokenAuthenticationFilter extends OncePerRequestFilter {

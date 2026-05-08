@@ -1,9 +1,6 @@
 package ru.itmo.idempotency.core.service;
 
 import lombok.RequiredArgsConstructor;
-
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
@@ -21,16 +18,13 @@ public class IdempotencySearchService {
     private final IdempotencyRepository idempotencyRepository;
 
     @Transactional
-    public Optional<IdempotencyEntity> acquireUniqueWaitIfLocked(String globalKey) {
-        return idempotencyRepository.findByGlobalKeyForUpdate(globalKey);
+    public Optional<IdempotencyEntity> acquireFirstNotLocked(IdempotencyStatus status) {
+        return idempotencyRepository.lockFirstByStatus(status.name());
     }
 
     @Transactional
-    public Optional<IdempotencyEntity> acquireFirstTimedOutReply(OffsetDateTime threshold) {
-        return idempotencyRepository.lockFirstByStatusAndUpdateDateBefore(
-                IdempotencyStatus.WAITING_ASYNC_RESPONSE.name(),
-                threshold
-        );
+    public Optional<IdempotencyEntity> acquireUniqueWaitIfLocked(String globalKey) {
+        return idempotencyRepository.findByGlobalKeyForUpdate(globalKey);
     }
 
     @Transactional(readOnly = true)
@@ -38,7 +32,7 @@ public class IdempotencySearchService {
         return idempotencyRepository.findByStatusAndUpdateDateBefore(
                 IdempotencyStatus.COMMITTED,
                 threshold,
-                PageRequest.of(0, batchSize, Sort.by("updateDate").ascending())
+                org.springframework.data.domain.PageRequest.of(0, batchSize, org.springframework.data.domain.Sort.by("updateDate").ascending())
         );
     }
 }

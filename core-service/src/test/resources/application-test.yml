@@ -1,10 +1,25 @@
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+  flyway:
+    locations: classpath:db/test-migration
+
 app:
   instance-id: test-core-service
   scheduler:
-    outbox-fixed-delay: 1d
-    delivery-fixed-delay: 1d
-    reply-timeout-fixed-delay: 7d
-    cleanup-fixed-delay: 7d
-  listener:
-    inbound-concurrency: 1
-    reply-concurrency: 1
+    outbox-fixed-delay: 365d
+    delivery-fixed-delay: 365d
+    cleanup-fixed-delay: 365d
+    batch-size: 100
+  cleanup:
+    retention: 1d
+    batch-size: 100
+  security:
+    tokens:
+      - token: operator-token
+        principal: operator
+        roles:
+          - OPERATOR
+          - ADMIN

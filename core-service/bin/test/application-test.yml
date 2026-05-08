@@ -1,0 +1,5 @@
+app:
+  scheduler:
+    outbox-fixed-delay: 1d
+    delivery-fixed-delay: 1d
+    cleanup-fixed-delay: 7d

@@ -24,7 +24,9 @@ public class SenderProperties {
     public static class Simulation {
         private boolean enabled = false;
         private String integration = "system1-to-system2";
-        private Duration interval = Duration.ofSeconds(10);
-        private int duplicateEvery = 3;
+        private Duration interval = Duration.ofSeconds(2);
+        private int duplicateEvery = 2;
+        private int burstSize = 5;
+        private Duration pause = Duration.ofSeconds(5);
     }
 }

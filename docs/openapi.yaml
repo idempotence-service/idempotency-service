@@ -1,0 +1,545 @@
+openapi: 3.0.3
+info:
+  title: Idempotency Service API
+  description: |
+    API сервиса идемпотентности. Состоит из трёх компонентов:
+    - **Core Service** (port 8080) — управление событиями и ручной разбор ошибок
+    - **Sender Simulator** (port 8081) — симулятор отправщика сообщений
+    - **Receiver Simulator** (port 8082) — симулятор получателя сообщений
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Core Service
+  - url: http://localhost:8081
+    description: Sender Simulator
+  - url: http://localhost:8082
+    description: Receiver Simulator
+
+tags:
+  - name: Core — Manual Review
+    description: Эндпоинты Core Service для ручного разбора событий с ошибками
+  - name: Sender
+    description: Эндпоинты Sender Simulator для отправки и просмотра сообщений
+  - name: Receiver
+    description: Эндпоинты Receiver Simulator для управления режимом получателя и просмотра событий
+
+paths:
+
+  # ─── Core Service ────────────────────────────────────────────────────────────
+
+  /get-error-events:
+    get:
+      tags: [Core — Manual Review]
+      summary: Получить список событий с ошибками
+      operationId: getErrorEvents
+      parameters:
+        - name: page
+          in: query
+          description: Номер страницы (0-based)
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          description: Количество элементов на странице
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: sort
+          in: query
+          description: Направление сортировки
+          schema:
+            type: string
+            default: asc
+            enum: [asc, desc]
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseErrorEventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /restart-event:
+    post:
+      tags: [Core — Manual Review]
+      summary: Перезапустить событие с ошибкой
+      operationId: restartEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RestartEventRequest'
+            example:
+              globalKey: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Событие поставлено на повтор
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /get-event-by-id:
+    get:
+      tags: [Core — Manual Review]
+      summary: Получить детали события по globalKey
+      operationId: getEventById
+      parameters:
+        - name: globalKey
+          in: query
+          required: true
+          description: Уникальный глобальный ключ события
+          schema:
+            type: string
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseEventDetails'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ─── Sender Simulator ────────────────────────────────────────────────────────
+
+  /api/sender/send:
+    post:
+      tags: [Sender]
+      summary: Отправить событие
+      description: Отправляет событие в систему. Можно указать количество дублей для тестирования идемпотентности.
+      operationId: sendEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEventRequest'
+            example:
+              integration: "PAYMENT_SERVICE"
+              uid: "my-unique-uid-001"
+              headers:
+                X-Trace-Id: "trace-123"
+              payload:
+                amount: 1000
+                currency: "RUB"
+              duplicates: 1
+      responses:
+        '200':
+          description: Событие отправлено, возвращается uid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "my-unique-uid-001"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/sender/sent:
+    get:
+      tags: [Sender]
+      summary: Получить все отправленные сообщения
+      operationId: getSentMessages
+      responses:
+        '200':
+          description: Список отправленных сообщений
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+
+  /api/sender/replies:
+    get:
+      tags: [Sender]
+      summary: Получить полученные ответы
+      operationId: getReplies
+      responses:
+        '200':
+          description: Список полученных ответов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+
+  /api/sender/state:
+    delete:
+      tags: [Sender]
+      summary: Сбросить состояние сендера
+      description: Очищает все отправленные сообщения и полученные ответы.
+      operationId: resetSenderState
+      responses:
+        '200':
+          description: Состояние сброшено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+
+  # ─── Receiver Simulator ──────────────────────────────────────────────────────
+
+  /api/receiver/events:
+    get:
+      tags: [Receiver]
+      summary: Получить все принятые события
+      operationId: getReceivedEvents
+      responses:
+        '200':
+          description: Список принятых событий
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+
+  /api/receiver/mode:
+    post:
+      tags: [Receiver]
+      summary: Установить режим работы ресивера
+      description: |
+        Переключает режим автоматической обработки входящих событий.
+
+        | Режим | Описание |
+        |-------|----------|
+        | `AUTO_SUCCESS` | Автоматически отвечает успехом |
+        | `AUTO_FAIL_RESEND` | Автоматически отвечает ошибкой с запросом повтора |
+        | `AUTO_FAIL_NO_RESEND` | Автоматически отвечает ошибкой без повтора |
+        | `MANUAL` | Ожидает ручного ответа через `/api/receiver/reply` |
+      operationId: setReceiverMode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModeRequest'
+            example:
+              integration: "PAYMENT_SERVICE"
+              mode: "AUTO_SUCCESS"
+      responses:
+        '200':
+          description: Режим установлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/receiver/reply:
+    post:
+      tags: [Receiver]
+      summary: Отправить ручной ответ на событие
+      description: Используется когда ресивер работает в режиме `MANUAL`.
+      operationId: sendManualReply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualReplyRequest'
+            example:
+              integration: "PAYMENT_SERVICE"
+              globalKey: "550e8400-e29b-41d4-a716-446655440000"
+              result: "SUCCESS"
+              needResend: false
+              resultDescription: "Платёж проведён успешно"
+      responses:
+        '200':
+          description: Ответ отправлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/receiver/state:
+    delete:
+      tags: [Receiver]
+      summary: Сбросить состояние ресивера
+      description: Очищает все принятые события и сбрасывает режимы.
+      operationId: resetReceiverState
+      responses:
+        '200':
+          description: Состояние сброшено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+
+# ─── Components ────────────────────────────────────────────────────────────────
+
+components:
+
+  schemas:
+
+    # ── Wrappers ────────────────────────────────────────────────────────────────
+
+    ApiResponseString:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: string
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiResponseAny:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiResponseErrorEventPage:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/ErrorEventPage'
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiResponseEventDetails:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/EventDetails'
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiError:
+      type: object
+      properties:
+        errorUid:
+          type: string
+          description: Уникальный идентификатор ошибки
+        title:
+          type: string
+          description: Заголовок ошибки
+        code:
+          type: string
+          description: Код ошибки
+          example: TECHNICAL_ERROR_99
+        text:
+          type: string
+          description: Текст ошибки
+
+    # ── Domain ──────────────────────────────────────────────────────────────────
+
+    ErrorEventPage:
+      type: object
+      description: Страница с событиями в статусе ошибки
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorEventItem'
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        size:
+          type: integer
+        number:
+          type: integer
+
+    ErrorEventItem:
+      type: object
+      properties:
+        globalKey:
+          type: string
+          description: Уникальный ключ события
+        status:
+          type: string
+          description: Статус события
+        service:
+          type: string
+          description: Сервис-источник
+        integration:
+          type: string
+          description: Тип интеграции
+
+    EventDetails:
+      type: object
+      properties:
+        globalKey:
+          type: string
+        sourceUid:
+          type: string
+          description: Uid события на стороне отправителя
+        service:
+          type: string
+        integration:
+          type: string
+        status:
+          type: string
+        statusDescription:
+          type: string
+          nullable: true
+        createDate:
+          type: string
+          format: date-time
+        updateDate:
+          type: string
+          format: date-time
+        payload:
+          type: object
+          description: Тело события (произвольный JSON)
+          nullable: true
+        headers:
+          type: object
+          description: Заголовки события (произвольный JSON)
+          nullable: true
+
+    # ── Requests ────────────────────────────────────────────────────────────────
+
+    RestartEventRequest:
+      type: object
+      required: [globalKey]
+      properties:
+        globalKey:
+          type: string
+          description: Глобальный ключ события для перезапуска
+
+    SendEventRequest:
+      type: object
+      required: [integration, duplicates]
+      properties:
+        integration:
+          type: string
+          description: Тип интеграции / назначение события
+        uid:
+          type: string
+          description: Произвольный uid (если не указан — генерируется автоматически)
+          nullable: true
+        headers:
+          type: object
+          additionalProperties: true
+          description: Произвольные заголовки события
+          nullable: true
+        payload:
+          type: object
+          description: Тело события (произвольный JSON)
+          nullable: true
+        duplicates:
+          type: integer
+          minimum: 1
+          description: Количество отправок (для тестирования идемпотентности)
+
+    ModeRequest:
+      type: object
+      required: [integration, mode]
+      properties:
+        integration:
+          type: string
+          description: Тип интеграции
+        mode:
+          type: string
+          enum: [AUTO_SUCCESS, AUTO_FAIL_RESEND, AUTO_FAIL_NO_RESEND, MANUAL]
+          description: Режим обработки входящих событий
+
+    ManualReplyRequest:
+      type: object
+      required: [integration, globalKey, result]
+      properties:
+        integration:
+          type: string
+        globalKey:
+          type: string
+          description: Глобальный ключ события, на которое отвечаем
+        result:
+          type: string
+          description: Результат обработки
+        needResend:
+          type: boolean
+          default: false
+          description: Нужен ли повтор (актуально при ошибке)
+        resultDescription:
+          type: string
+          nullable: true
+          description: Текстовое описание результата
+
+  responses:
+    BadRequest:
+      description: Некорректный запрос (ошибка валидации)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Ошибка валидации"
+              code: "VALIDATION_ERROR"
+              text: "Поле globalKey не может быть пустым"
+
+    InternalError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Техническая ошибка"
+              code: "TECHNICAL_ERROR_99"
+              text: "Непредвиденная ошибка сервера"

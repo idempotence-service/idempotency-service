@@ -101,8 +101,10 @@ services:
       APP_ROUTES_FILE: /app/config/routes.yaml
       APP_SIMULATION_ENABLED: "true"
       APP_SIMULATION_INTEGRATION: system1-to-system2
-      APP_SIMULATION_INTERVAL: 10s
-      APP_SIMULATION_DUPLICATE_EVERY: "3"
+      APP_SIMULATION_INTERVAL: 2s
+      APP_SIMULATION_DUPLICATE_EVERY: "2"
+      APP_SIMULATION_BURST_SIZE: "5"
+      APP_SIMULATION_PAUSE: 5s
     depends_on:
       redpanda-sender:
         condition: service_started

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Idempotency Service — API Docs</title>
+  <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" />
+  <style>
+    body { margin: 0; background: #fafafa; }
+
+    /* hide "Try it out" button and server selector */
+    .try-out,
+    .opblock-section-request-body .try-out,
+    .servers,
+    .servers-title,
+    .scheme-container { display: none !important; }
+
+    .swagger-ui .topbar { background-color: #1b1b1b; }
+    .swagger-ui .topbar .link { display: none; }
+    .topbar-wrapper::before {
+      content: "Idempotency Service — API Documentation";
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 600;
+      padding: 0 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui-standalone-preset.js"></script>
+  <script>
+    SwaggerUIBundle({
+      url: "openapi.yaml",
+      dom_id: "#swagger-ui",
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      layout: "StandaloneLayout",
+
+      // отключаем возможность отправки запросов
+      supportedSubmitMethods: [],
+      tryItOutEnabled: false,
+
+      // внешний вид
+      deepLinking: true,
+      displayRequestDuration: false,
+      defaultModelsExpandDepth: 1,
+      defaultModelExpandDepth: 1,
+      docExpansion: "list",
+      filter: true,
+      showExtensions: false,
+      showCommonExtensions: false,
+    });
+  </script>
+</body>
+</html>

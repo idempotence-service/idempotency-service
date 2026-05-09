@@ -17,6 +17,6 @@ public class KafkaEventOutboxSearchService {
 
     @Transactional
     public Optional<KafkaEventOutboxEntity> acquireFirstNotLocked() {
-        return kafkaEventOutboxRepository.lockFirstByStatus(OutboxStatus.NEW.name());
+        return kafkaEventOutboxRepository.lockFirstAvailableByStatus(OutboxStatus.NEW.name());
     }
 }

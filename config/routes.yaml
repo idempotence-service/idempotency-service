@@ -8,17 +8,25 @@ kafka:
         producer:
           host: redpanda-sender:9092
           topic: sender.events.inbound
+          partitions: 6
+          replicationFactor: 1
         consumer:
           host: redpanda-sender:9092
           topic: sender.events.request-out
           group: sender-simulator-replies
+          partitions: 6
+          replicationFactor: 1
       receiver:
         producer:
           host: redpanda-receiver:9092
           topic: receiver.events.unique
+          partitions: 6
+          replicationFactor: 1
         consumer:
           host: redpanda-receiver:9092
           topic: receiver.events.reply
           group: core-reply-consumer
+          partitions: 6
+          replicationFactor: 1
       idempotency:
         enabled: true

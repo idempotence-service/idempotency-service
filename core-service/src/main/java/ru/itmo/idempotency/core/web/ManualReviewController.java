@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.itmo.idempotency.common.web.ApiResponse;
 import ru.itmo.idempotency.core.service.ManualReviewService;
 
+import java.util.List;
+
 @Validated
 @RestController
 @RequiredArgsConstructor
@@ -42,5 +44,10 @@ public class ManualReviewController {
     @GetMapping("/get-event-by-id")
     public ApiResponse<ManualReviewDtos.EventDetails> getEventById(@RequestParam @NotBlank String globalKey) {
         return ApiResponse.success(manualReviewService.getByGlobalKey(globalKey));
+    }
+
+    @GetMapping("/get-duplicate-events")
+    public ApiResponse<List<ManualReviewDtos.DuplicateEventItem>> getDuplicateEvents() {
+        return ApiResponse.success(manualReviewService.getDuplicateEvents());
     }
 }

@@ -1,0 +1,179 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --md-bg:            #0f0d13;
+    --md-surface:       #1c1a22;
+    --md-surface-2:     #252330;
+    --md-surface-3:     #2c2a38;
+    --md-on-surface:    #e6e1e5;
+    --md-on-surface-v:  #cac4d0;
+    --md-outline:       #49454f;
+    --md-outline-v:     #2e2b35;
+    --md-primary:       #d0bcff;
+    --md-primary-c:     #4f378b;
+    --md-secondary:     #ccc2dc;
+    --md-error:         #f2b8b5;
+    --md-error-c:       #601410;
+    --md-success:       #6dd58c;
+    --md-warning:       #f6c142;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background-color: var(--md-bg);
+    color: var(--md-on-surface);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--md-surface); }
+  ::-webkit-scrollbar-thumb { background: var(--md-outline); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--md-on-surface-v); }
+}
+
+@layer components {
+
+  /* ── Elevation cards ─────────────────────────────────── */
+  .card {
+    background: var(--md-surface);
+    border-radius: 16px;
+    border: 1px solid var(--md-outline-v);
+  }
+  .card-2 {
+    background: var(--md-surface-2);
+    border-radius: 16px;
+    border: 1px solid var(--md-outline-v);
+  }
+
+  /* ── Buttons ─────────────────────────────────────────── */
+  .btn {
+    @apply inline-flex items-center gap-2 rounded-full text-sm font-medium transition-all duration-200
+           disabled:opacity-40 disabled:cursor-not-allowed select-none;
+    padding: 10px 20px;
+    letter-spacing: 0.01em;
+  }
+  .btn-primary {
+    @apply btn;
+    background: var(--md-primary-c);
+    color: var(--md-primary);
+    border: 1px solid transparent;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #5c4299;
+    box-shadow: 0 2px 12px #4f378b88;
+  }
+  .btn-danger {
+    @apply btn;
+    background: var(--md-error-c);
+    color: var(--md-error);
+    border: 1px solid transparent;
+  }
+  .btn-danger:hover:not(:disabled) { background: #7a1f1a; }
+  .btn-success {
+    @apply btn;
+    background: #1b4d2e;
+    color: var(--md-success);
+    border: 1px solid transparent;
+  }
+  .btn-success:hover:not(:disabled) { background: #235c38; }
+  .btn-tonal {
+    @apply btn;
+    background: var(--md-surface-3);
+    color: var(--md-on-surface-v);
+    border: 1px solid var(--md-outline-v);
+  }
+  .btn-tonal:hover:not(:disabled) {
+    background: var(--md-surface-2);
+    color: var(--md-on-surface);
+  }
+  .btn-text {
+    @apply btn;
+    background: transparent;
+    color: var(--md-primary);
+    padding: 8px 12px;
+  }
+  .btn-text:hover:not(:disabled) { background: rgba(208,188,255,0.08); }
+  .btn-sm { padding: 6px 14px; font-size: 0.75rem; }
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded-full transition-colors duration-150;
+    width: 36px; height: 36px;
+    background: transparent;
+    color: var(--md-on-surface-v);
+  }
+  .btn-icon:hover { background: rgba(255,255,255,0.08); color: var(--md-on-surface); }
+
+  /* ── Inputs ──────────────────────────────────────────── */
+  .input {
+    @apply w-full text-sm transition-all duration-150;
+    background: var(--md-surface-2);
+    border: 1px solid var(--md-outline);
+    border-radius: 12px;
+    padding: 10px 14px;
+    color: var(--md-on-surface);
+    outline: none;
+  }
+  .input::placeholder { color: var(--md-outline); }
+  .input:focus {
+    border-color: var(--md-primary);
+    box-shadow: 0 0 0 2px rgba(208,188,255,0.15);
+  }
+  .select { @apply input cursor-pointer; }
+  .label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--md-on-surface-v);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 6px;
+  }
+
+  /* ── Badges / Chips ──────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1 font-medium;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+  }
+  .badge-error   { background: rgba(242,184,181,0.12); color: #f2b8b5; border: 1px solid rgba(242,184,181,0.2); }
+  .badge-success { background: rgba(109,213,140,0.12); color: #6dd58c; border: 1px solid rgba(109,213,140,0.2); }
+  .badge-warning { background: rgba(246,193,66,0.12);  color: #f6c142; border: 1px solid rgba(246,193,66,0.2); }
+  .badge-info    { background: rgba(130,177,255,0.12); color: #82b1ff; border: 1px solid rgba(130,177,255,0.2); }
+  .badge-default { background: rgba(202,196,208,0.1);  color: #cac4d0; border: 1px solid rgba(202,196,208,0.15); }
+
+  /* ── Table ───────────────────────────────────────────── */
+  .table-container { overflow-x: auto; border-radius: 12px; border: 1px solid var(--md-outline-v); }
+  table.data-table { width: 100%; font-size: 0.875rem; border-collapse: collapse; }
+  table.data-table thead { background: var(--md-surface-2); }
+  table.data-table thead th {
+    padding: 14px 16px;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--md-on-surface-v);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    white-space: nowrap;
+  }
+  table.data-table tbody tr {
+    border-top: 1px solid var(--md-outline-v);
+    transition: background 0.12s;
+    cursor: pointer;
+  }
+  table.data-table tbody tr:hover { background: rgba(255,255,255,0.04); }
+  table.data-table tbody td { padding: 13px 16px; color: var(--md-on-surface); }
+
+  /* ── Mono ────────────────────────────────────────────── */
+  .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; }
+
+  /* ── Divider ─────────────────────────────────────────── */
+  .divider { border: none; border-top: 1px solid var(--md-outline-v); margin: 0; }
+}
+

@@ -9,13 +9,17 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 import ru.itmo.idempotency.core.repository.IdempotencyRepository;
+import ru.itmo.idempotency.core.repository.EventAuditRepository;
 import ru.itmo.idempotency.core.web.ManualReviewDtos;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class ManualReviewService {
 
     private final IdempotencyRepository idempotencyRepository;
+    private final EventAuditRepository eventAuditRepository;
     private final IdempotencySearchService idempotencySearchService;
     private final IdempotencyService idempotencyService;
 
@@ -63,5 +67,19 @@ public class ManualReviewService {
                 entity.getServiceName(),
                 entity.getIntegrationName()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<ManualReviewDtos.DuplicateEventItem> getDuplicateEvents() {
+        return eventAuditRepository.findByReasonOrderByCreateDateDesc("DUPLICATE_REQUEST")
+                .stream()
+                .map(entity -> new ManualReviewDtos.DuplicateEventItem(
+                        entity.getGlobalKey(),
+                        entity.getServiceName(),
+                        entity.getIntegrationName(),
+                        entity.getReason(),
+                        entity.getCreateDate()
+                ))
+                .toList();
     }
 }

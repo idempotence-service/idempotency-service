@@ -36,4 +36,11 @@ public final class ManualReviewDtos {
                                JsonNode payload,
                                JsonNode headers) {
     }
+
+    public record DuplicateEventItem(String globalKey,
+                                     String service,
+                                     String integration,
+                                     String reason,
+                                     OffsetDateTime createDate) {
+    }
 }

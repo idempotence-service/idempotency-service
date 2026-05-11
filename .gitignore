@@ -32,3 +32,18 @@ replay_pid*
 build/
 **/build/
 !gradle/wrapper/gradle-wrapper.jar
+
+
+# UI Console
+ui-console/node_modules/
+ui-console/dist/
+ui-console/.vite/
+ui-console/.cache/
+ui-console/.env
+ui-console/.env.local
+ui-console/.env.production
+ui-console/.env.development
+ui-console/.env.test
+ui-console/.env.staging
+ui-console/.env.example
+ui-console/.env.*.local

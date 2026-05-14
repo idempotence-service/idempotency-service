@@ -50,4 +50,14 @@ public class ManualReviewController {
     public ApiResponse<List<ManualReviewDtos.DuplicateEventItem>> getDuplicateEvents() {
         return ApiResponse.success(manualReviewService.getDuplicateEvents());
     }
+
+    @GetMapping("/get-duplicate-count")
+    public ApiResponse<Long> getDuplicateCount() {
+        return ApiResponse.success(manualReviewService.getDuplicateCount());
+    }
+
+    @GetMapping("/get-timeout-count")
+    public ApiResponse<Long> getTimeoutCount() {
+        return ApiResponse.success(manualReviewService.getTimeoutCount());
+    }
 }

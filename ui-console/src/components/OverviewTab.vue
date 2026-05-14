@@ -181,16 +181,15 @@ const sentCount = ref(0)
 const repliesCount = ref(0)
 const receivedMessages = ref([])
 const receivedCount = ref(0)
-const duplicateEvents = ref([])
+const duplicateCount = ref(0)
+const timeoutCount = ref(0)
 const recentEvents = computed(() => errorEvents.value.slice(0, 5))
-
-const duplicateCount = computed(() => duplicateEvents.value.length)
 
 const statCards = computed(() => [
   {
     label: 'Ошибки',
-    value: totalErrors.value,
-    sub: 'Требуют внимания',
+    value: totalErrors.value + timeoutCount.value,
+    sub: `Финальных: ${totalErrors.value} · Таймаутов: ${timeoutCount.value}`,
     icon: '⚠',
     color: 'var(--md-error)',
     bg: 'rgba(242,184,181,0.12)',
@@ -382,6 +381,7 @@ async function loadAll() {
       loadSenderStats(),
       loadReceiverStats(),
       loadDuplicates(),
+      loadTimeouts(),
     ])
     lastRefresh.value = new Date().toLocaleTimeString('ru-RU')
   } finally {
@@ -423,9 +423,15 @@ async function loadReceiverStats() {
 
 async function loadDuplicates() {
   try {
-    const res = await coreApi.getDuplicateEvents()
-    const d = res.data?.data
-    duplicateEvents.value = Array.isArray(d) ? d : []
+    const res = await coreApi.getDuplicateCount()
+    duplicateCount.value = res.data?.data ?? 0
+  } catch {}
+}
+
+async function loadTimeouts() {
+  try {
+    const res = await coreApi.getTimeoutCount()
+    timeoutCount.value = res.data?.data ?? 0
   } catch {}
 }
 

@@ -71,7 +71,7 @@ public class ManualReviewService {
 
     @Transactional(readOnly = true)
     public List<ManualReviewDtos.DuplicateEventItem> getDuplicateEvents() {
-        return eventAuditRepository.findByReasonOrderByCreateDateDesc("DUPLICATE_REQUEST")
+        return eventAuditRepository.findByReasonOrderByCreateDateDesc(AuditReasons.IDEMPOTENCY_FAILED)
                 .stream()
                 .map(entity -> new ManualReviewDtos.DuplicateEventItem(
                         entity.getGlobalKey(),
@@ -81,5 +81,15 @@ public class ManualReviewService {
                         entity.getCreateDate()
                 ))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public long getDuplicateCount() {
+        return eventAuditRepository.countByReason(AuditReasons.IDEMPOTENCY_FAILED);
+    }
+
+    @Transactional(readOnly = true)
+    public long getTimeoutCount() {
+        return eventAuditRepository.countDistinctGlobalKeyByReason(AuditReasons.ASYNC_REPLY_TIMEOUT);
     }
 }

@@ -126,5 +126,18 @@ services:
     ports:
       - "18082:8082"
 
+  ui-console:
+    image: ${UI_CONSOLE_IMAGE}
+    restart: unless-stopped
+    depends_on:
+      core-service:
+        condition: service_started
+      sender-simulator:
+        condition: service_started
+      receiver-simulator:
+        condition: service_started
+    ports:
+      - "18083:80"
+
 volumes:
   postgres-data:

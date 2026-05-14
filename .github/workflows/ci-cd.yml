@@ -129,7 +129,6 @@ jobs:
         run: |
           mkdir -p .deploy
           cp deploy/docker-compose.yml .deploy/docker-compose.yml
-          cp deploy/docker-compose.vps.yml .deploy/docker-compose.vps.yml
           cat > .deploy/.env <<DEPLOY_ENV
           CORE_SERVICE_IMAGE=${IMAGE_BASE}/core-service:${IMAGE_TAG}
           SENDER_SIMULATOR_IMAGE=${IMAGE_BASE}/sender-simulator:${IMAGE_TAG}
@@ -164,16 +163,16 @@ jobs:
           set +a
 
           echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USERNAME" --password-stdin
-          docker compose -f docker-compose.vps.yml -p idempotency-service down --remove-orphans || true
-          docker compose -f docker-compose.vps.yml -p idempotency-service pull
-          docker compose -f docker-compose.vps.yml -p idempotency-service up -d --remove-orphans
+          docker compose -f docker-compose.yml -p idempotency-service down --remove-orphans || true
+          docker compose -f docker-compose.yml -p idempotency-service pull
+          docker compose -f docker-compose.yml -p idempotency-service up -d --remove-orphans
 
           echo 'Waiting for containers to start...'
           sleep 20
-          docker compose -f docker-compose.vps.yml -p idempotency-service ps
+          docker compose -f docker-compose.yml -p idempotency-service ps
 
           for service in postgres redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator ui-console; do
-            container_id=$(docker compose -f docker-compose.vps.yml -p idempotency-service ps -q "$service")
+            container_id=$(docker compose -f docker-compose.yml -p idempotency-service ps -q "$service")
             if [ -z "$container_id" ]; then
               echo "Service $service was not created"
               exit 1

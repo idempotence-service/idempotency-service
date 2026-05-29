@@ -9,6 +9,7 @@ import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 import ru.itmo.idempotency.core.domain.OutboxStatus;
 import ru.itmo.idempotency.core.repository.IdempotencyRepository;
 import ru.itmo.idempotency.core.repository.KafkaEventOutboxRepository;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -19,6 +20,7 @@ public class CoreMetrics {
 
     private final IdempotencyRepository idempotencyRepository;
     private final KafkaEventOutboxRepository kafkaEventOutboxRepository;
+    private final StorageShardExecutor storageShardExecutor;
 
     private final Counter inboundUniqueCounter;
     private final Counter inboundDuplicateCounter;
@@ -42,9 +44,11 @@ public class CoreMetrics {
 
     public CoreMetrics(MeterRegistry meterRegistry,
                        IdempotencyRepository idempotencyRepository,
-                       KafkaEventOutboxRepository kafkaEventOutboxRepository) {
+                       KafkaEventOutboxRepository kafkaEventOutboxRepository,
+                       StorageShardExecutor storageShardExecutor) {
         this.idempotencyRepository = idempotencyRepository;
         this.kafkaEventOutboxRepository = kafkaEventOutboxRepository;
+        this.storageShardExecutor = storageShardExecutor;
 
         inboundUniqueCounter = counter(meterRegistry, "idempotency.inbound.total", "result", "unique");
         inboundDuplicateCounter = counter(meterRegistry, "idempotency.inbound.total", "result", "duplicate");
@@ -156,22 +160,26 @@ public class CoreMetrics {
     }
 
     private void registerIdempotencyBacklogGauge(MeterRegistry meterRegistry, IdempotencyStatus status) {
-        Gauge.builder("idempotency.queue.backlog", idempotencyRepository, repository -> repository.countByStatus(status))
+        Gauge.builder("idempotency.queue.backlog", this,
+                        metrics -> metrics.storageShardExecutor.sumLongReadOnly(shardId -> metrics.idempotencyRepository.countByStatus(status)))
                 .tag("status", status.name())
                 .register(meterRegistry);
     }
 
     private void registerOutboxBacklogGauge(MeterRegistry meterRegistry, OutboxStatus status) {
-        Gauge.builder("idempotency.outbox.backlog", kafkaEventOutboxRepository, repository -> repository.countByStatus(status))
+        Gauge.builder("idempotency.outbox.backlog", this,
+                        metrics -> metrics.storageShardExecutor.sumLongReadOnly(shardId -> metrics.kafkaEventOutboxRepository.countByStatus(status)))
                 .tag("status", status.name())
                 .register(meterRegistry);
     }
 
     private double countExpiredIdempotencyLeases() {
-        return idempotencyRepository.countExpiredLeases(OffsetDateTime.now(ZoneOffset.UTC));
+        OffsetDateTime threshold = OffsetDateTime.now(ZoneOffset.UTC);
+        return storageShardExecutor.sumLongReadOnly(shardId -> idempotencyRepository.countExpiredLeases(threshold));
     }
 
     private double countExpiredOutboxLeases() {
-        return kafkaEventOutboxRepository.countExpiredLeases(OffsetDateTime.now(ZoneOffset.UTC));
+        OffsetDateTime threshold = OffsetDateTime.now(ZoneOffset.UTC);
+        return storageShardExecutor.sumLongReadOnly(shardId -> kafkaEventOutboxRepository.countExpiredLeases(threshold));
     }
 }

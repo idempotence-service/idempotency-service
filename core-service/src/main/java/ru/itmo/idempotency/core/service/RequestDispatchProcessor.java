@@ -7,6 +7,7 @@ import ru.itmo.idempotency.common.kafka.KafkaJsonProducerRegistry;
 import ru.itmo.idempotency.common.messaging.MessageModels;
 import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.KafkaEventOutboxEntity;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.Duration;
 import java.util.Map;
@@ -21,19 +22,22 @@ public class RequestDispatchProcessor {
     private final CoreProperties coreProperties;
     private final CoreMetrics coreMetrics;
     private final MdcContextSupport mdcContextSupport;
+    private final StorageShardExecutor storageShardExecutor;
 
     public RequestDispatchProcessor(KafkaEventOutboxService kafkaEventOutboxService,
                                     CoreJsonSupport coreJsonSupport,
                                     KafkaJsonProducerRegistry kafkaJsonProducerRegistry,
                                     CoreProperties coreProperties,
                                     CoreMetrics coreMetrics,
-                                    MdcContextSupport mdcContextSupport) {
+                                    MdcContextSupport mdcContextSupport,
+                                    StorageShardExecutor storageShardExecutor) {
         this.kafkaEventOutboxService = kafkaEventOutboxService;
         this.coreJsonSupport = coreJsonSupport;
         this.kafkaJsonProducerRegistry = kafkaJsonProducerRegistry;
         this.coreProperties = coreProperties;
         this.coreMetrics = coreMetrics;
         this.mdcContextSupport = mdcContextSupport;
+        this.storageShardExecutor = storageShardExecutor;
     }
 
     public int processBatch(int batchSize) {
@@ -49,8 +53,9 @@ public class RequestDispatchProcessor {
 
     private boolean processSingle() {
         String ownerId = coreProperties.getInstanceId();
-        KafkaEventOutboxEntity outboxEntity = kafkaEventOutboxService
-                .claimNextNew(ownerId, coreProperties.getResilience().getLeaseDuration())
+        KafkaEventOutboxEntity outboxEntity = storageShardExecutor
+                .firstPresentInTransaction(shardId -> kafkaEventOutboxService
+                        .claimNextNew(ownerId, coreProperties.getResilience().getLeaseDuration()))
                 .orElse(null);
         if (outboxEntity == null) {
             return false;
@@ -67,6 +72,7 @@ public class RequestDispatchProcessor {
             long startedAt = System.nanoTime();
             if (snapshot.requestOut() == null) {
                 if (!kafkaEventOutboxService.failClaimedDispatch(
+                        outboxEntity.getGlobalKey(),
                         outboxEntity.getId(),
                         ownerId,
                         "Не найден канал request_out в сохраненном yaml_snapshot"
@@ -92,7 +98,7 @@ public class RequestDispatchProcessor {
                         )
                 );
                 duration = Duration.ofNanos(System.nanoTime() - startedAt);
-                if (!kafkaEventOutboxService.completeClaimedDispatch(outboxEntity.getId(), ownerId, null)) {
+                if (!kafkaEventOutboxService.completeClaimedDispatch(outboxEntity.getGlobalKey(), outboxEntity.getId(), ownerId, null)) {
                     log.warn("Lost ownership of technical response outbox {} before completion", outboxEntity.getId());
                     coreMetrics.recordOutboxOwnershipLost();
                 } else {
@@ -103,6 +109,7 @@ public class RequestDispatchProcessor {
                 String description = "Произошла ошибка при отправке ответа в " + snapshot.requestOut().topic() + ": " + exception.getMessage();
                 if (KafkaExceptionClassifier.isRetriable(exception)) {
                     if (!kafkaEventOutboxService.retryClaimedDispatch(
+                            outboxEntity.getGlobalKey(),
                             outboxEntity.getId(),
                             ownerId,
                             description,
@@ -118,7 +125,7 @@ public class RequestDispatchProcessor {
                     return true;
                 }
 
-                if (!kafkaEventOutboxService.failClaimedDispatch(outboxEntity.getId(), ownerId, description)) {
+                if (!kafkaEventOutboxService.failClaimedDispatch(outboxEntity.getGlobalKey(), outboxEntity.getId(), ownerId, description)) {
                     log.warn("Lost ownership of technical response outbox {} before marking error", outboxEntity.getId());
                     coreMetrics.recordOutboxOwnershipLost();
                 } else {

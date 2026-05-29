@@ -9,6 +9,7 @@ import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 import ru.itmo.idempotency.core.repository.IdempotencyRepository;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -22,6 +23,7 @@ public class IdempotencyService {
 
     private final IdempotencyRepository idempotencyRepository;
     private final ObjectMapper objectMapper;
+    private final StorageShardExecutor storageShardExecutor;
 
     @Transactional
     public IdempotencyEntity save(String globalKey,
@@ -29,20 +31,22 @@ public class IdempotencyService {
                                   RouteModels.RouteSnapshot snapshot,
                                   JsonNode headers,
                                   JsonNode payload) {
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        IdempotencyEntity entity = IdempotencyEntity.builder()
-                .globalKey(globalKey)
-                .sourceUid(sourceUid)
-                .serviceName(snapshot.service())
-                .integrationName(snapshot.integration())
-                .yamlSnapshot(objectMapper.valueToTree(snapshot))
-                .headers(headers)
-                .payload(payload)
-                .status(IdempotencyStatus.RESERVED)
-                .retryCount(0)
-                .nextAttemptDate(now)
-                .build();
-        return idempotencyRepository.saveAndFlush(entity);
+        return storageShardExecutor.runOnKey(globalKey, () -> {
+            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+            IdempotencyEntity entity = IdempotencyEntity.builder()
+                    .globalKey(globalKey)
+                    .sourceUid(sourceUid)
+                    .serviceName(snapshot.service())
+                    .integrationName(snapshot.integration())
+                    .yamlSnapshot(objectMapper.valueToTree(snapshot))
+                    .headers(headers)
+                    .payload(payload)
+                    .status(IdempotencyStatus.RESERVED)
+                    .retryCount(0)
+                    .nextAttemptDate(now)
+                    .build();
+            return idempotencyRepository.saveAndFlush(entity);
+        });
     }
 
     @Transactional
@@ -53,8 +57,10 @@ public class IdempotencyService {
 
     @Transactional
     public IdempotencyEntity changeStatus(IdempotencyEntity entity, IdempotencyStatus status, String description) {
-        applyStatus(entity, status, description);
-        return idempotencyRepository.save(entity);
+        return storageShardExecutor.runOnKey(entity.getGlobalKey(), () -> {
+            applyStatus(entity, status, description);
+            return idempotencyRepository.save(entity);
+        });
     }
 
     @Transactional
@@ -67,8 +73,10 @@ public class IdempotencyService {
                                            String description,
                                            Duration delay,
                                            int maxAttempts) {
-        applyRetry(entity, description, delay, maxAttempts);
-        return idempotencyRepository.save(entity);
+        return storageShardExecutor.runOnKey(entity.getGlobalKey(), () -> {
+            applyRetry(entity, description, delay, maxAttempts);
+            return idempotencyRepository.save(entity);
+        });
     }
 
     @Transactional
@@ -76,7 +84,8 @@ public class IdempotencyService {
                                            String ownerId,
                                            IdempotencyStatus status,
                                            String description) {
-        return updateClaimed(globalKey, ownerId, entity -> applyStatus(entity, status, description));
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> updateClaimed(globalKey, ownerId, entity -> applyStatus(entity, status, description)));
     }
 
     @Transactional
@@ -85,23 +94,32 @@ public class IdempotencyService {
                                         String description,
                                         Duration delay,
                                         int maxAttempts) {
-        return updateClaimed(globalKey, ownerId, entity -> applyRetry(entity, description, delay, maxAttempts));
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> updateClaimed(globalKey, ownerId, entity -> applyRetry(entity, description, delay, maxAttempts)));
     }
 
     @Transactional
     public boolean failClaimedDelivery(String globalKey, String ownerId, String description) {
-        return updateClaimed(globalKey, ownerId, entity -> applyStatus(entity, IdempotencyStatus.ERROR, description));
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> updateClaimed(globalKey, ownerId, entity -> applyStatus(entity, IdempotencyStatus.ERROR, description)));
     }
 
     @Transactional
     public IdempotencyEntity restart(IdempotencyEntity entity) {
-        applyRestart(entity);
-        return idempotencyRepository.save(entity);
+        return storageShardExecutor.runOnKey(entity.getGlobalKey(), () -> {
+            applyRestart(entity);
+            return idempotencyRepository.save(entity);
+        });
     }
 
     @Transactional
     public void delete(Collection<IdempotencyEntity> entities) {
-        idempotencyRepository.deleteAllInBatch(entities);
+        if (entities == null || entities.isEmpty()) {
+            return;
+        }
+
+        String shardKey = entities.iterator().next().getGlobalKey();
+        storageShardExecutor.runOnKey(shardKey, () -> idempotencyRepository.deleteAllInBatch(entities));
     }
 
     private IdempotencyEntity claim(IdempotencyEntity entity, String ownerId, Duration leaseDuration) {

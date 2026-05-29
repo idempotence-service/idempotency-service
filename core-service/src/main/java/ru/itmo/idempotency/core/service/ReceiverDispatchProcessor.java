@@ -10,6 +10,7 @@ import ru.itmo.idempotency.common.messaging.MessageModels;
 import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.Duration;
 import java.util.Iterator;
@@ -25,19 +26,22 @@ public class ReceiverDispatchProcessor {
     private final CoreProperties coreProperties;
     private final CoreMetrics coreMetrics;
     private final MdcContextSupport mdcContextSupport;
+    private final StorageShardExecutor storageShardExecutor;
 
     public ReceiverDispatchProcessor(IdempotencyService idempotencyService,
                                      CoreJsonSupport coreJsonSupport,
                                      KafkaJsonProducerRegistry kafkaJsonProducerRegistry,
                                      CoreProperties coreProperties,
                                      CoreMetrics coreMetrics,
-                                     MdcContextSupport mdcContextSupport) {
+                                     MdcContextSupport mdcContextSupport,
+                                     StorageShardExecutor storageShardExecutor) {
         this.idempotencyService = idempotencyService;
         this.coreJsonSupport = coreJsonSupport;
         this.kafkaJsonProducerRegistry = kafkaJsonProducerRegistry;
         this.coreProperties = coreProperties;
         this.coreMetrics = coreMetrics;
         this.mdcContextSupport = mdcContextSupport;
+        this.storageShardExecutor = storageShardExecutor;
     }
 
     public int processBatch(int batchSize) {
@@ -53,8 +57,9 @@ public class ReceiverDispatchProcessor {
 
     private boolean processSingle() {
         String ownerId = coreProperties.getInstanceId();
-        IdempotencyEntity entity = idempotencyService
-                .claimNextReserved(ownerId, coreProperties.getResilience().getLeaseDuration())
+        IdempotencyEntity entity = storageShardExecutor
+                .firstPresentInTransaction(shardId -> idempotencyService
+                        .claimNextReserved(ownerId, coreProperties.getResilience().getLeaseDuration()))
                 .orElse(null);
         if (entity == null) {
             return false;

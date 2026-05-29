@@ -37,6 +37,9 @@ public class CoreProperties {
     private Cleanup cleanup = new Cleanup();
 
     @Valid
+    private Storage storage = new Storage();
+
+    @Valid
     private Security security = new Security();
 
     @Getter
@@ -76,6 +79,28 @@ public class CoreProperties {
         private Duration retention = Duration.ofDays(7);
         @Min(1)
         private int batchSize = 500;
+    }
+
+    @Getter
+    @Setter
+    public static class Storage {
+        @Valid
+        private List<Shard> shards = new ArrayList<>();
+    }
+
+    @Getter
+    @Setter
+    public static class Shard {
+        @NotBlank
+        private String shardId;
+        @NotBlank
+        private String url;
+        @NotBlank
+        private String username;
+        private String password;
+        private String driverClassName;
+        @Min(1)
+        private int maximumPoolSize = 10;
     }
 
     @Getter

@@ -2,11 +2,10 @@ package ru.itmo.idempotency.core.service;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -22,7 +21,7 @@ public class ReplyTimeoutRecoveryService {
     private final CoreProperties coreProperties;
     private final CoreMetrics coreMetrics;
     private final MdcContextSupport mdcContextSupport;
-    private final TransactionTemplate transactionTemplate;
+    private final StorageShardExecutor storageShardExecutor;
 
     public ReplyTimeoutRecoveryService(IdempotencySearchService idempotencySearchService,
                                        IdempotencyService idempotencyService,
@@ -31,7 +30,7 @@ public class ReplyTimeoutRecoveryService {
                                        CoreProperties coreProperties,
                                        CoreMetrics coreMetrics,
                                        MdcContextSupport mdcContextSupport,
-                                       PlatformTransactionManager transactionManager) {
+                                       StorageShardExecutor storageShardExecutor) {
         this.idempotencySearchService = idempotencySearchService;
         this.idempotencyService = idempotencyService;
         this.eventAuditService = eventAuditService;
@@ -39,14 +38,13 @@ public class ReplyTimeoutRecoveryService {
         this.coreProperties = coreProperties;
         this.coreMetrics = coreMetrics;
         this.mdcContextSupport = mdcContextSupport;
-        this.transactionTemplate = new TransactionTemplate(transactionManager);
+        this.storageShardExecutor = storageShardExecutor;
     }
 
     public int processBatch(int batchSize) {
         int processed = 0;
         while (processed < batchSize) {
-            Boolean currentProcessed = transactionTemplate.execute(status -> processSingle());
-            if (!Boolean.TRUE.equals(currentProcessed)) {
+            if (!storageShardExecutor.firstTrueInTransaction(shardId -> processSingle())) {
                 break;
             }
             processed++;

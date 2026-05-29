@@ -120,8 +120,8 @@ class CoreLeaseClaimingIntegrationTest {
         kafkaEventOutboxRepository.saveAndFlush(stored);
 
         Assertions.assertTrue(kafkaEventOutboxService.claimNextNew("worker-b", Duration.ofSeconds(30)).isPresent());
-        Assertions.assertFalse(kafkaEventOutboxService.completeClaimedDispatch(outboxEntity.getId(), "worker-a", null));
-        Assertions.assertTrue(kafkaEventOutboxService.completeClaimedDispatch(outboxEntity.getId(), "worker-b", null));
+        Assertions.assertFalse(kafkaEventOutboxService.completeClaimedDispatch(outboxEntity.getGlobalKey(), outboxEntity.getId(), "worker-a", null));
+        Assertions.assertTrue(kafkaEventOutboxService.completeClaimedDispatch(outboxEntity.getGlobalKey(), outboxEntity.getId(), "worker-b", null));
 
         KafkaEventOutboxEntity completed = kafkaEventOutboxRepository.findById(outboxEntity.getId()).orElseThrow();
         Assertions.assertEquals(OutboxStatus.DONE, completed.getStatus());

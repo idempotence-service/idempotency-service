@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 import ru.itmo.idempotency.core.repository.IdempotencyRepository;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -19,10 +20,16 @@ import java.util.Optional;
 public class IdempotencySearchService {
 
     private final IdempotencyRepository idempotencyRepository;
+    private final StorageShardExecutor storageShardExecutor;
 
     @Transactional
     public Optional<IdempotencyEntity> acquireUniqueWaitIfLocked(String globalKey) {
-        return idempotencyRepository.findByGlobalKeyForUpdate(globalKey);
+        return storageShardExecutor.runOnKey(globalKey, () -> idempotencyRepository.findByGlobalKeyForUpdate(globalKey));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<IdempotencyEntity> findByGlobalKey(String globalKey) {
+        return storageShardExecutor.runReadOnlyOnKey(globalKey, () -> idempotencyRepository.findById(globalKey));
     }
 
     @Transactional

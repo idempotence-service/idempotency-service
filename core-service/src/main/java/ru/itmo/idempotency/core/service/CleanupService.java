@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.itmo.idempotency.core.config.CoreProperties;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -18,20 +19,24 @@ public class CleanupService {
     private final CoreProperties coreProperties;
     private final IdempotencySearchService idempotencySearchService;
     private final IdempotencyService idempotencyService;
+    private final StorageShardExecutor storageShardExecutor;
 
     public int cleanupCommitted() {
         int deleted = 0;
         OffsetDateTime threshold = OffsetDateTime.now(ZoneOffset.UTC).minus(coreProperties.getCleanup().getRetention());
-        while (true) {
-            List<IdempotencyEntity> batch = idempotencySearchService.findCommittedBatchForCleanup(
-                    threshold,
-                    coreProperties.getCleanup().getBatchSize()
-            );
-            if (batch.isEmpty()) {
-                break;
+        for (String shardId : storageShardExecutor.shardIdsInScanOrder()) {
+            while (true) {
+                List<IdempotencyEntity> batch = storageShardExecutor.runInTransactionOnShard(shardId, () ->
+                        idempotencySearchService.findCommittedBatchForCleanup(
+                                threshold,
+                                coreProperties.getCleanup().getBatchSize()
+                        ));
+                if (batch.isEmpty()) {
+                    break;
+                }
+                idempotencyService.delete(batch);
+                deleted += batch.size();
             }
-            idempotencyService.delete(batch);
-            deleted += batch.size();
         }
         if (deleted > 0) {
             log.info("Deleted {} committed idempotency records", deleted);

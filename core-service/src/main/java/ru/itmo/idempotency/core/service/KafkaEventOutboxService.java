@@ -9,6 +9,7 @@ import ru.itmo.idempotency.core.domain.KafkaEventOutboxEntity;
 import ru.itmo.idempotency.core.domain.OutboxStatus;
 import ru.itmo.idempotency.core.domain.ProcessingResult;
 import ru.itmo.idempotency.core.repository.KafkaEventOutboxRepository;
+import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -21,24 +22,27 @@ public class KafkaEventOutboxService {
 
     private final KafkaEventOutboxRepository kafkaEventOutboxRepository;
     private final ObjectMapper objectMapper;
+    private final StorageShardExecutor storageShardExecutor;
 
     @Transactional
     public KafkaEventOutboxEntity save(String globalKey,
                                        RouteModels.RouteSnapshot snapshot,
                                        ProcessingResult result,
                                        String resultDescription) {
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        return kafkaEventOutboxRepository.save(KafkaEventOutboxEntity.builder()
-                .globalKey(globalKey)
-                .serviceName(snapshot.service())
-                .integrationName(snapshot.integration())
-                .yamlSnapshot(objectMapper.valueToTree(snapshot))
-                .status(OutboxStatus.NEW)
-                .result(result)
-                .resultDescription(DescriptionUtils.limit(resultDescription))
-                .retryCount(0)
-                .nextAttemptDate(now)
-                .build());
+        return storageShardExecutor.runOnKey(globalKey, () -> {
+            OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+            return kafkaEventOutboxRepository.save(KafkaEventOutboxEntity.builder()
+                    .globalKey(globalKey)
+                    .serviceName(snapshot.service())
+                    .integrationName(snapshot.integration())
+                    .yamlSnapshot(objectMapper.valueToTree(snapshot))
+                    .status(OutboxStatus.NEW)
+                    .result(result)
+                    .resultDescription(DescriptionUtils.limit(resultDescription))
+                    .retryCount(0)
+                    .nextAttemptDate(now)
+                    .build());
+        });
     }
 
     @Transactional
@@ -49,8 +53,10 @@ public class KafkaEventOutboxService {
 
     @Transactional
     public KafkaEventOutboxEntity changeStatus(KafkaEventOutboxEntity entity, OutboxStatus status, String description) {
-        applyStatus(entity, status, description);
-        return kafkaEventOutboxRepository.save(entity);
+        return storageShardExecutor.runOnKey(entity.getGlobalKey(), () -> {
+            applyStatus(entity, status, description);
+            return kafkaEventOutboxRepository.save(entity);
+        });
     }
 
     @Transactional
@@ -63,27 +69,33 @@ public class KafkaEventOutboxService {
                                                 String description,
                                                 Duration delay,
                                                 int maxAttempts) {
-        applyRetry(entity, description, delay, maxAttempts);
-        return kafkaEventOutboxRepository.save(entity);
+        return storageShardExecutor.runOnKey(entity.getGlobalKey(), () -> {
+            applyRetry(entity, description, delay, maxAttempts);
+            return kafkaEventOutboxRepository.save(entity);
+        });
     }
 
     @Transactional
-    public boolean completeClaimedDispatch(Long id, String ownerId, String description) {
-        return updateClaimed(id, ownerId, entity -> applyStatus(entity, OutboxStatus.DONE, description));
+    public boolean completeClaimedDispatch(String globalKey, Long id, String ownerId, String description) {
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> updateClaimed(id, ownerId, entity -> applyStatus(entity, OutboxStatus.DONE, description)));
     }
 
     @Transactional
-    public boolean retryClaimedDispatch(Long id,
+    public boolean retryClaimedDispatch(String globalKey,
+                                        Long id,
                                         String ownerId,
                                         String description,
                                         Duration delay,
                                         int maxAttempts) {
-        return updateClaimed(id, ownerId, entity -> applyRetry(entity, description, delay, maxAttempts));
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> updateClaimed(id, ownerId, entity -> applyRetry(entity, description, delay, maxAttempts)));
     }
 
     @Transactional
-    public boolean failClaimedDispatch(Long id, String ownerId, String description) {
-        return updateClaimed(id, ownerId, entity -> applyStatus(entity, OutboxStatus.ERROR, description));
+    public boolean failClaimedDispatch(String globalKey, Long id, String ownerId, String description) {
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> updateClaimed(id, ownerId, entity -> applyStatus(entity, OutboxStatus.ERROR, description)));
     }
 
     private KafkaEventOutboxEntity claim(KafkaEventOutboxEntity entity, String ownerId, Duration leaseDuration) {

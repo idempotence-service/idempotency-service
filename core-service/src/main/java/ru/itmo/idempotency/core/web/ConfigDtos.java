@@ -36,4 +36,23 @@ public class ConfigDtos {
         ResilienceConfig resilience,
         CleanupConfig cleanup
     ) {}
+
+    public record IntegrationInfo(
+            String integrationName,
+            String serviceName,
+            ChannelInfo inbound,
+            ChannelInfo requestOut,
+            ChannelInfo replyIn,
+            ChannelInfo replyOut,
+            boolean idempotencyEnabled
+    ) {}
+
+
+    public record ChannelInfo(
+            String bootstrapServers,
+            String topic,
+            String group,
+            Integer partitions,
+            Short replicationFactor
+    ) {}
 }

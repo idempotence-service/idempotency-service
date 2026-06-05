@@ -1,5 +1,6 @@
 package ru.itmo.idempotency.receiver.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import ru.itmo.idempotency.common.config.RouteCatalog;
@@ -15,6 +16,7 @@ public class ReceiverReplyService {
 
     private final RouteCatalog routeCatalog;
     private final KafkaJsonProducerRegistry kafkaJsonProducerRegistry;
+    private final ObjectMapper objectMapper;
 
     public void sendReply(String integration, String globalKey, String result, boolean needResend, String resultDescription) {
         RouteModels.RouteSnapshot route = routeCatalog.getRequiredRoute(integration);
@@ -27,7 +29,7 @@ public class ReceiverReplyService {
                 globalKey,
                 new MessageModels.MessageEnvelope(
                         Map.of("globalKey", globalKey),
-                        new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(
+                        objectMapper.valueToTree(
                                 new MessageModels.AsyncReplyPayload(result, needResend, resultDescription)
                         )
                 )

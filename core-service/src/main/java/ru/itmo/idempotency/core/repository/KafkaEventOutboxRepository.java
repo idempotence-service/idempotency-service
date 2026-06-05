@@ -8,7 +8,9 @@ import org.springframework.data.repository.query.Param;
 import ru.itmo.idempotency.core.domain.KafkaEventOutboxEntity;
 import ru.itmo.idempotency.core.domain.OutboxStatus;
 
+import org.springframework.data.domain.Pageable;
 import java.time.OffsetDateTime;
+import java.util.List;
 
 import java.util.Optional;
 
@@ -31,6 +33,10 @@ public interface KafkaEventOutboxRepository extends JpaRepository<KafkaEventOutb
     Optional<KafkaEventOutboxEntity> findByIdForUpdate(@Param("id") Long id);
 
     long countByStatus(OutboxStatus status);
+
+    List<KafkaEventOutboxEntity> findByStatusAndUpdateDateBefore(OutboxStatus status,
+                                                                 OffsetDateTime updateDate,
+                                                                 Pageable pageable);
 
     @Query("select count(entity) from KafkaEventOutboxEntity entity where entity.ownerId is not null and entity.leaseUntil < :threshold")
     long countExpiredLeases(@Param("threshold") OffsetDateTime threshold);

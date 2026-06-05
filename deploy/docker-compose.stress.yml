@@ -35,6 +35,10 @@ x-core-env: &core-env
   APP_ROUTES_FILE: /app/config/routes.yaml
   APP_LISTENER_INBOUND_CONCURRENCY: "4"
   APP_LISTENER_REPLY_CONCURRENCY: "4"
+  APP_SCHEDULER_POOL_SIZE: "8"
+  APP_SCHEDULER_OUTBOX_WORKERS: "3"
+  APP_SCHEDULER_DELIVERY_WORKERS: "3"
+  APP_SCHEDULER_REPLY_TIMEOUT_WORKERS: "1"
   APP_SCHEDULER_BATCH_SIZE: "1000"
   APP_SCHEDULER_OUTBOX_FIXED_DELAY: 250ms
   APP_SCHEDULER_DELIVERY_FIXED_DELAY: 250ms
@@ -102,6 +106,7 @@ x-sender-env: &sender-env
   APP_SIMULATION_DUPLICATE_EVERY: "2"
   APP_SIMULATION_BURST_SIZE: "100"
   APP_SIMULATION_PAUSE: 0ms
+  APP_STATE_HISTORY_LIMIT: "200"
 
 x-sender-service: &sender-service
   <<: *sender-build
@@ -124,6 +129,7 @@ x-receiver-env: &receiver-env
   <<: *common-java-env
   JAVA_TOOL_OPTIONS: -Xms128m -Xmx384m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
   APP_ROUTES_FILE: /app/config/routes.yaml
+  APP_STATE_HISTORY_LIMIT: "200"
 
 x-receiver-service: &receiver-service
   <<: *receiver-build

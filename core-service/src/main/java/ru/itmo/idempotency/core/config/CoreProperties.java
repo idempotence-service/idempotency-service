@@ -50,6 +50,14 @@ public class CoreProperties {
         private Duration replyTimeoutFixedDelay = Duration.ofSeconds(30);
         private Duration cleanupFixedDelay = Duration.ofDays(1);
         @Min(1)
+        private int poolSize = 6;
+        @Min(1)
+        private int outboxWorkers = 2;
+        @Min(1)
+        private int deliveryWorkers = 2;
+        @Min(1)
+        private int replyTimeoutWorkers = 1;
+        @Min(1)
         private int batchSize = 100;
     }
 

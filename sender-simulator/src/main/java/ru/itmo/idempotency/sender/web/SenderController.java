@@ -42,6 +42,11 @@ public class SenderController {
         return ApiResponse.success(senderStateService.receivedReplies());
     }
 
+    @GetMapping("/stats")
+    public ApiResponse<?> stats() {
+        return ApiResponse.success(senderStateService.stats());
+    }
+
     @DeleteMapping("/state")
     public ApiResponse<String> reset() {
         senderStateService.reset();

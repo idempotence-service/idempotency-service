@@ -25,6 +25,11 @@ public class ReceiverController {
         return ApiResponse.success(receiverStateService.messages());
     }
 
+    @GetMapping("/stats")
+    public ApiResponse<?> stats() {
+        return ApiResponse.success(receiverStateService.stats());
+    }
+
     @PostMapping("/mode")
     public ApiResponse<String> mode(@Valid @RequestBody ReceiverDtos.ModeRequest request) {
         receiverStateService.setMode(request.integration(), request.mode());

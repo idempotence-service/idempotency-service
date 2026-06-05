@@ -8,10 +8,14 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import ru.itmo.idempotency.common.config.RouteCatalog;
+import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.web.ApiResponse;
 import ru.itmo.idempotency.core.config.CoreProperties;
 
 import java.time.Duration;
+import java.util.Comparator;
+import java.util.List;
 
 @Validated
 @RestController
@@ -20,6 +24,7 @@ import java.time.Duration;
 public class ConfigController {
 
     private final CoreProperties coreProperties;
+    private final RouteCatalog routeCatalog;
 
     @GetMapping
     public ApiResponse<ConfigDtos.FullConfig> getConfig() {
@@ -91,4 +96,50 @@ public class ConfigController {
         if (req.replyConcurrency() != null) l.setReplyConcurrency(req.replyConcurrency());
         return ApiResponse.success("ok");
     }
+
+    @GetMapping("/integrations")
+    public ApiResponse<List<ConfigDtos.IntegrationInfo>> getIntegrations() {
+        List<ConfigDtos.IntegrationInfo> integrations = routeCatalog.getAllRoutes().stream()
+                .map(this::toIntegrationInfo)
+                .sorted(Comparator.comparing(ConfigDtos.IntegrationInfo::integrationName))
+                .toList();
+
+        return ApiResponse.success(integrations);
+    }
+
+    @GetMapping("/integrations/enabled")
+    public ApiResponse<List<ConfigDtos.IntegrationInfo>> getEnabledIntegrations() {
+        List<ConfigDtos.IntegrationInfo> integrations = routeCatalog.getEnabledRoutes().stream()
+                .map(this::toIntegrationInfo)
+                .sorted(Comparator.comparing(ConfigDtos.IntegrationInfo::integrationName))
+                .toList();
+
+        return ApiResponse.success(integrations);
+    }
+
+    private ConfigDtos.IntegrationInfo toIntegrationInfo(RouteModels.RouteSnapshot route) {
+        return new ConfigDtos.IntegrationInfo(
+                route.integration(),
+                route.service(),
+                toChannelInfo(route.inbound()),
+                toChannelInfo(route.requestOut()),
+                toChannelInfo(route.replyIn()),
+                toChannelInfo(route.replyOut()),
+                route.idempotencyEnabled()
+        );
+    }
+
+    private ConfigDtos.ChannelInfo toChannelInfo(RouteModels.RouteChannel channel) {
+        if (channel == null) {
+            return null;
+        }
+        return new ConfigDtos.ChannelInfo(
+                channel.bootstrapServers(),
+                channel.topic(),
+                channel.group(),
+                channel.partitions(),
+                channel.replicationFactor()
+        );
+    }
+
 }

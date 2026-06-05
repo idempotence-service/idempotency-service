@@ -51,6 +51,10 @@ app:
     delivery-fixed-delay: 5s
     reply-timeout-fixed-delay: 15s
     cleanup-fixed-delay: 1d
+    pool-size: 6
+    outbox-workers: 2
+    delivery-workers: 2
+    reply-timeout-workers: 1
     batch-size: 100
   listener:
     inbound-concurrency: 3

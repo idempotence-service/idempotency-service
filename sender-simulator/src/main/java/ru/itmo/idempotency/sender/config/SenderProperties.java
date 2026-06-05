@@ -1,5 +1,6 @@
 package ru.itmo.idempotency.sender.config;
 
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,6 +20,8 @@ public class SenderProperties {
 
     private Simulation simulation = new Simulation();
 
+    private State state = new State();
+
     @Getter
     @Setter
     public static class Simulation {
@@ -28,5 +31,13 @@ public class SenderProperties {
         private int duplicateEvery = 2;
         private int burstSize = 5;
         private Duration pause = Duration.ofSeconds(5);
+    }
+
+    @Getter
+    @Setter
+    public static class State {
+        private boolean storeHistory = true;
+        @Min(1)
+        private int historyLimit = 1000;
     }
 }

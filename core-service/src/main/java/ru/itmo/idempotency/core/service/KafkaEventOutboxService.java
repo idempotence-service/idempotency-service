@@ -14,6 +14,7 @@ import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Collection;
 import java.util.Optional;
 
 @Service
@@ -96,6 +97,16 @@ public class KafkaEventOutboxService {
     public boolean failClaimedDispatch(String globalKey, Long id, String ownerId, String description) {
         return storageShardExecutor.runOnKey(globalKey,
                 () -> updateClaimed(id, ownerId, entity -> applyStatus(entity, OutboxStatus.ERROR, description)));
+    }
+
+    @Transactional
+    public void delete(Collection<KafkaEventOutboxEntity> entities) {
+        if (entities == null || entities.isEmpty()) {
+            return;
+        }
+
+        String shardKey = entities.iterator().next().getGlobalKey();
+        storageShardExecutor.runOnKey(shardKey, () -> kafkaEventOutboxRepository.deleteAllInBatch(entities));
     }
 
     private KafkaEventOutboxEntity claim(KafkaEventOutboxEntity entity, String ownerId, Duration leaseDuration) {

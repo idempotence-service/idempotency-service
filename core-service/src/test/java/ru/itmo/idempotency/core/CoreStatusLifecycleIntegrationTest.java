@@ -23,6 +23,9 @@ import ru.itmo.idempotency.common.kafka.KafkaJsonProducerRegistry;
 import ru.itmo.idempotency.common.messaging.MessageModels;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
+import ru.itmo.idempotency.core.domain.KafkaEventOutboxEntity;
+import ru.itmo.idempotency.core.domain.OutboxStatus;
+import ru.itmo.idempotency.core.domain.ProcessingResult;
 import ru.itmo.idempotency.core.repository.IdempotencyRepository;
 import ru.itmo.idempotency.core.repository.KafkaEventOutboxRepository;
 import ru.itmo.idempotency.core.service.CleanupService;
@@ -199,6 +202,58 @@ class CoreStatusLifecycleIntegrationTest {
         Assertions.assertEquals(1, deleted);
         Assertions.assertFalse(idempotencyRepository.findById("sender-service:system1-to-system2:" + oldUid).isPresent());
         Assertions.assertTrue(idempotencyRepository.findById("sender-service:system1-to-system2:" + freshUid).isPresent());
+    }
+
+    @Test
+    void shouldCleanupOnlyExpiredDoneAndErrorOutboxRecords() throws Exception {
+        OffsetDateTime oldTimestamp = OffsetDateTime.now(ZoneOffset.UTC).minusDays(10);
+        OffsetDateTime freshTimestamp = OffsetDateTime.now(ZoneOffset.UTC).minusHours(1);
+
+        KafkaEventOutboxEntity oldDone = kafkaEventOutboxRepository.saveAndFlush(KafkaEventOutboxEntity.builder()
+                .globalKey("sender-service:system1-to-system2:" + UUID.randomUUID())
+                .serviceName("sender-service")
+                .integrationName("system1-to-system2")
+                .yamlSnapshot(objectMapper.readTree("{}"))
+                .status(OutboxStatus.DONE)
+                .result(ProcessingResult.SUCCESS)
+                .retryCount(0)
+                .nextAttemptDate(oldTimestamp)
+                .createDate(oldTimestamp)
+                .updateDate(oldTimestamp)
+                .build());
+
+        KafkaEventOutboxEntity oldError = kafkaEventOutboxRepository.saveAndFlush(KafkaEventOutboxEntity.builder()
+                .globalKey("sender-service:system1-to-system2:" + UUID.randomUUID())
+                .serviceName("sender-service")
+                .integrationName("system1-to-system2")
+                .yamlSnapshot(objectMapper.readTree("{}"))
+                .status(OutboxStatus.ERROR)
+                .result(ProcessingResult.FAIL)
+                .retryCount(0)
+                .nextAttemptDate(oldTimestamp)
+                .createDate(oldTimestamp)
+                .updateDate(oldTimestamp)
+                .build());
+
+        KafkaEventOutboxEntity freshNew = kafkaEventOutboxRepository.saveAndFlush(KafkaEventOutboxEntity.builder()
+                .globalKey("sender-service:system1-to-system2:" + UUID.randomUUID())
+                .serviceName("sender-service")
+                .integrationName("system1-to-system2")
+                .yamlSnapshot(objectMapper.readTree("{}"))
+                .status(OutboxStatus.NEW)
+                .result(ProcessingResult.SUCCESS)
+                .retryCount(0)
+                .nextAttemptDate(freshTimestamp)
+                .createDate(freshTimestamp)
+                .updateDate(freshTimestamp)
+                .build());
+
+        int deleted = cleanupService.cleanupExpiredRecords();
+
+        Assertions.assertEquals(2, deleted);
+        Assertions.assertFalse(kafkaEventOutboxRepository.findById(oldDone.getId()).isPresent());
+        Assertions.assertFalse(kafkaEventOutboxRepository.findById(oldError.getId()).isPresent());
+        Assertions.assertTrue(kafkaEventOutboxRepository.findById(freshNew.getId()).isPresent());
     }
 
     private Consumer<String, String> createConsumer(String groupId, String topic) {

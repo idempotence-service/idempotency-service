@@ -6,7 +6,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import ru.itmo.idempotency.sender.config.SenderProperties;
 
@@ -16,7 +15,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-@ConditionalOnProperty(prefix = "app.simulation", name = "enabled", havingValue = "true")
 public class SimulationScheduler implements ApplicationRunner {
 
     private final SenderProperties senderProperties;
@@ -30,16 +28,21 @@ public class SimulationScheduler implements ApplicationRunner {
     }
 
     private void loop() {
-        SenderProperties.Simulation config = senderProperties.getSimulation();
         while (!Thread.currentThread().isInterrupted()) {
+            SenderProperties.Simulation config = senderProperties.getSimulation();
+            if (!config.isEnabled()) {
+                sleep(Duration.ofSeconds(1));
+                continue;
+            }
             for (int i = 0; i < config.getBurstSize(); i++) {
                 if (Thread.currentThread().isInterrupted()) return;
+                if (!senderProperties.getSimulation().isEnabled()) break;
                 simulateTick();
                 if (i < config.getBurstSize() - 1) {
-                    sleep(config.getInterval());
+                    sleep(senderProperties.getSimulation().getInterval());
                 }
             }
-            Duration pause = config.getPause();
+            Duration pause = senderProperties.getSimulation().getPause();
             if (!pause.isZero()) {
                 sleep(pause);
             }

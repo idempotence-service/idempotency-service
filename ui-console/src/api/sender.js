@@ -5,4 +5,6 @@ export const senderApi = {
   getSentMessages: () => senderClient.get('/api/sender/sent'),
   getReplies: () => senderClient.get('/api/sender/replies'),
   resetState: () => senderClient.delete('/api/sender/state'),
+  getSimulationConfig: () => senderClient.get('/api/sender/config'),
+  updateSimulationConfig: (data) => senderClient.put('/api/sender/config', data),
 }

@@ -171,7 +171,7 @@ jobs:
           sleep 20
           docker compose -f docker-compose.yml -p idempotency-service ps
 
-          for service in postgres redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator ui-console; do
+          for service in postgres-shard-0 postgres-shard-1 postgres-shard-2 redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator ui-console; do
             container_id=$(docker compose -f docker-compose.yml -p idempotency-service ps -q "$service")
             if [ -z "$container_id" ]; then
               echo "Service $service was not created"

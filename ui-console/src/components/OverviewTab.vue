@@ -176,10 +176,8 @@ const loading = ref(false)
 const lastRefresh = ref('—')
 const errorEvents = ref([])
 const totalErrors = ref(0)
-const sentMessages = ref([])
 const sentCount = ref(0)
 const repliesCount = ref(0)
-const receivedMessages = ref([])
 const receivedCount = ref(0)
 const duplicateCount = ref(0)
 const timeoutCount = ref(0)
@@ -400,24 +398,18 @@ async function loadErrors() {
 
 async function loadSenderStats() {
   try {
-    const [sentRes, repliesRes] = await Promise.allSettled([
-      senderApi.getSentMessages(),
-      senderApi.getReplies(),
-    ])
-    const sent = sentRes.status === 'fulfilled' ? sentRes.value.data?.data : null
-    const replies = repliesRes.status === 'fulfilled' ? repliesRes.value.data?.data : null
-    sentMessages.value = Array.isArray(sent) ? sent : []
-    sentCount.value = sentMessages.value.length
-    repliesCount.value = Array.isArray(replies) ? replies.length : 0
+    const res = await senderApi.getStats()
+    const stats = res.data?.data
+    sentCount.value = stats?.totalSent ?? 0
+    repliesCount.value = stats?.totalReplies ?? 0
   } catch {}
 }
 
 async function loadReceiverStats() {
   try {
-    const res = await receiverApi.getReceivedEvents()
-    const d = res.data?.data
-    receivedMessages.value = Array.isArray(d) ? d : []
-    receivedCount.value = receivedMessages.value.length
+    const res = await receiverApi.getStats()
+    const stats = res.data?.data
+    receivedCount.value = stats?.totalReceived ?? 0
   } catch {}
 }
 

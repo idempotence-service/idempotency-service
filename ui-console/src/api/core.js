@@ -23,4 +23,8 @@ export const coreApi = {
     coreClient.put('/config/cleanup', data),
   updateListener: (data) =>
     coreClient.put('/config/listener', data),
+  getIntegrations: () =>
+    coreClient.get('/config/integrations'),
+  getEnabledIntegrations: () =>
+    coreClient.get('/config/integrations/enabled'),
 }

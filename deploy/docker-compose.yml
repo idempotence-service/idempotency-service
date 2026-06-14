@@ -1,6 +1,9 @@
 name: idempotency-service
 
 x-core-service-environment: &core-service-environment
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-shard-0:5432/${POSTGRES_DB}
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
   APP_ROUTES_FILE: /app/config/routes.yaml
   APP_LISTENER_INBOUND_CONCURRENCY: "3"
   APP_LISTENER_REPLY_CONCURRENCY: "3"

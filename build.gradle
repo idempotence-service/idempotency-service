@@ -49,6 +49,7 @@ subprojects {
 
 project(':common') {
     apply plugin: 'java-library'
+    apply plugin: 'java-test-fixtures'
 
     dependencies {
         api 'com.fasterxml.jackson.core:jackson-databind'
@@ -72,6 +73,7 @@ project(':common') {
 
             testImplementation 'org.springframework.boot:spring-boot-starter-test'
             testImplementation 'org.springframework.kafka:spring-kafka-test'
+            testImplementation testFixtures(project(':common'))
         }
     }
 }

@@ -44,10 +44,10 @@ public class InboundMessageProcessor {
             JsonNode userHeaders = coreJsonSupport.headersWithoutUid(headers);
             try {
                 transactionalHandler.saveUnique(globalKey, uid, route, userHeaders, payload);
-                coreMetrics.recordInboundUnique();
+                coreMetrics.recordInboundUnique(route.integration());
             } catch (DataIntegrityViolationException exception) {
                 transactionalHandler.saveDuplicate(globalKey, route, coreJsonSupport.toJsonNode(headers), payload);
-                coreMetrics.recordInboundDuplicate();
+                coreMetrics.recordInboundDuplicate(route.integration());
             }
         }
     }
@@ -56,6 +56,6 @@ public class InboundMessageProcessor {
     private void saveInvalidInbound(RouteModels.RouteSnapshot route, String rawMessage) {
         log.warn("Invalid inbound message received for route {}", route.integration());
         eventAuditService.save(null, route, AuditReasons.INVALID_INBOUND_EVENT, null, coreJsonSupport.safeRawPayload(rawMessage));
-        coreMetrics.recordInboundInvalid();
+        coreMetrics.recordInboundInvalid(route.integration());
     }
 }

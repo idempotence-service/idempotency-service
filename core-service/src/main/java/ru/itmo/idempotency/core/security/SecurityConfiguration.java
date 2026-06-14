@@ -1,6 +1,7 @@
 package ru.itmo.idempotency.core.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,20 +20,21 @@ public class SecurityConfiguration {
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity,
                                             ConfiguredTokenAuthenticationFilter configuredTokenAuthenticationFilter,
-                                            ObjectMapper objectMapper) throws Exception {
+                                            ObjectMapper objectMapper,
+                                            MeterRegistry meterRegistry) throws Exception {
         return httpSecurity
                 .csrf(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(configurer -> configurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
                         .anyRequest().hasAnyRole("OPERATOR", "ADMIN")
                 )
                 .addFilterBefore(configuredTokenAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(configurer -> configurer
-                        .authenticationEntryPoint((request, response, authException) -> writeNoAccessResponse(response, objectMapper))
-                        .accessDeniedHandler((request, response, accessDeniedException) -> writeNoAccessResponse(response, objectMapper))
+                        .authenticationEntryPoint((request, response, authException) -> writeNoAccessResponse(response, objectMapper, meterRegistry))
+                        .accessDeniedHandler((request, response, accessDeniedException) -> writeNoAccessResponse(response, objectMapper, meterRegistry))
                 )
                 .logout(AbstractHttpConfigurer::disable)
                 .rememberMe(AbstractHttpConfigurer::disable)
@@ -41,7 +43,10 @@ public class SecurityConfiguration {
                 .build();
     }
 
-    private void writeNoAccessResponse(HttpServletResponse response, ObjectMapper objectMapper) throws java.io.IOException {
+    private void writeNoAccessResponse(HttpServletResponse response,
+                                       ObjectMapper objectMapper,
+                                       MeterRegistry meterRegistry) throws java.io.IOException {
+        meterRegistry.counter("idempotency.api.errors.total", "code", "access_denied").increment();
         response.setStatus(HttpServletResponse.SC_OK);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         objectMapper.writeValue(response.getOutputStream(), ApiResponse.failure("Техническая ошибка", "TECHNICAL_ERROR_01", "Нет доступа"));

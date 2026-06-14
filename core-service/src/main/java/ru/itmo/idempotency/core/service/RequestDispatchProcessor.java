@@ -78,9 +78,9 @@ public class RequestDispatchProcessor {
                         "Не найден канал request_out в сохраненном yaml_snapshot"
                 )) {
                     log.warn("Lost ownership of technical response outbox {} before schema validation error", outboxEntity.getId());
-                    coreMetrics.recordOutboxOwnershipLost();
+                    coreMetrics.recordOutboxOwnershipLost(snapshot.integration());
                 }
-                coreMetrics.recordOutboxFailure(Duration.ofNanos(System.nanoTime() - startedAt));
+                coreMetrics.recordOutboxFailure(snapshot.integration(), Duration.ofNanos(System.nanoTime() - startedAt));
                 return true;
             }
 
@@ -100,9 +100,9 @@ public class RequestDispatchProcessor {
                 duration = Duration.ofNanos(System.nanoTime() - startedAt);
                 if (!kafkaEventOutboxService.completeClaimedDispatch(outboxEntity.getGlobalKey(), outboxEntity.getId(), ownerId, null)) {
                     log.warn("Lost ownership of technical response outbox {} before completion", outboxEntity.getId());
-                    coreMetrics.recordOutboxOwnershipLost();
+                    coreMetrics.recordOutboxOwnershipLost(snapshot.integration());
                 } else {
-                    coreMetrics.recordOutboxSuccess(duration);
+                    coreMetrics.recordOutboxSuccess(snapshot.integration(), duration);
                 }
             } catch (Exception exception) {
                 duration = Duration.ofNanos(System.nanoTime() - startedAt);
@@ -117,9 +117,9 @@ public class RequestDispatchProcessor {
                             coreProperties.getResilience().getMaxAttempts()
                     )) {
                         log.warn("Lost ownership of technical response outbox {} before retry scheduling", outboxEntity.getId());
-                        coreMetrics.recordOutboxOwnershipLost();
+                        coreMetrics.recordOutboxOwnershipLost(snapshot.integration());
                     } else {
-                        coreMetrics.recordOutboxRetry(duration);
+                        coreMetrics.recordOutboxRetry(snapshot.integration(), duration);
                     }
                     log.warn("Temporary technical response dispatch failure for {}", outboxEntity.getGlobalKey(), exception);
                     return true;
@@ -127,9 +127,9 @@ public class RequestDispatchProcessor {
 
                 if (!kafkaEventOutboxService.failClaimedDispatch(outboxEntity.getGlobalKey(), outboxEntity.getId(), ownerId, description)) {
                     log.warn("Lost ownership of technical response outbox {} before marking error", outboxEntity.getId());
-                    coreMetrics.recordOutboxOwnershipLost();
+                    coreMetrics.recordOutboxOwnershipLost(snapshot.integration());
                 } else {
-                    coreMetrics.recordOutboxFailure(duration);
+                    coreMetrics.recordOutboxFailure(snapshot.integration(), duration);
                 }
                 log.warn("Permanent technical response dispatch failure for {}", outboxEntity.getGlobalKey(), exception);
             }

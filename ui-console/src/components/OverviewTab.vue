@@ -34,33 +34,69 @@
       </div>
     </div>
 
-    <!-- Activity Timeline Chart -->
-    <div class="card p-6">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="text-sm font-semibold" style="color:var(--md-on-surface)">Активность за последний час</h3>
-        <div class="flex items-center gap-3">
+    <!-- Time Range Selector -->
+    <div class="flex items-center justify-center">
+      <div class="flex items-center gap-1 p-1 rounded-full" style="background:var(--md-surface-2)">
+        <button
+          v-for="range in timeRanges"
+          :key="range.id"
+          @click="activityTimeRange = range.id"
+          class="px-3 py-1 rounded-full text-xs font-medium transition-all"
+          :style="activityTimeRange === range.id
+            ? `background:var(--md-primary); color:var(--md-on-primary)`
+            : `color:var(--md-on-surface-v)`"
+        >
+          {{ range.label }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Activity Timeline Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Duplicates Chart -->
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold" style="color:var(--md-on-surface)">Дубликаты</h3>
           <div class="flex items-center gap-1.5">
             <div class="w-2 h-2 rounded-full" style="background:#f6c142"></div>
             <span class="text-xs" style="color:var(--md-on-surface-v)">Дубли</span>
           </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full" style="background:var(--md-error)"></div>
-            <span class="text-xs" style="color:var(--md-on-surface-v)">Таймауты</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full" style="background:#82b1ff"></div>
-            <span class="text-xs" style="color:var(--md-on-surface-v)">Ошибки</span>
-          </div>
+        </div>
+        <div v-if="loading" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
+          Загрузка...
+        </div>
+        <div v-else-if="!activityChartData.labels.length" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
+          Нет данных
+        </div>
+        <div v-else class="h-56">
+          <Line :data="duplicatesChartData" :options="activityChartOptions" />
         </div>
       </div>
-      <div v-if="loading" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
-        Загрузка...
-      </div>
-      <div v-else-if="!activityChartData.labels.length" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
-        Нет данных за последний час
-      </div>
-      <div v-else class="h-56">
-        <Line :data="activityChartData" :options="activityChartOptions" />
+
+      <!-- Errors & Timeouts Chart -->
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold" style="color:var(--md-on-surface)">Проблемы обработки</h3>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5">
+              <div class="w-2 h-2 rounded-full" style="background:var(--md-error)"></div>
+              <span class="text-xs" style="color:var(--md-on-surface-v)">Таймауты</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2 h-2 rounded-full" style="background:#82b1ff"></div>
+              <span class="text-xs" style="color:var(--md-on-surface-v)">Ошибки</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="loading" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
+          Загрузка...
+        </div>
+        <div v-else-if="!activityChartData.labels.length" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
+          Нет данных
+        </div>
+        <div v-else class="h-56">
+          <Line :data="errorsChartData" :options="activityChartOptions" />
+        </div>
       </div>
     </div>
 
@@ -73,14 +109,14 @@
         <div v-if="loading" class="flex items-center justify-center h-44 text-sm" style="color:var(--md-on-surface-v)">
           Загрузка...
         </div>
-        <div v-else-if="!(sentCount + receivedCount + totalErrors)" class="flex items-center justify-center h-44 text-sm" style="color:var(--md-on-surface-v)">
+        <div v-else-if="!(sentCount + receivedCount + totalErrorsFromAudit)" class="flex items-center justify-center h-44 text-sm" style="color:var(--md-on-surface-v)">
           Нет данных для отображения
         </div>
         <div v-else class="flex flex-col lg:flex-row items-center gap-6 lg:gap-10">
           <div class="relative w-48 h-48 shrink-0">
             <Doughnut :data="typeChartData" :options="typeChartOptions" />
             <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span class="text-3xl font-bold" style="color:var(--md-on-surface)">{{ sentCount + receivedCount + totalErrors }}</span>
+              <span class="text-3xl font-bold" style="color:var(--md-on-surface)">{{ sentCount + receivedCount + totalErrorsFromAudit }}</span>
               <span class="text-xs" style="color:var(--md-on-surface-v)">всего</span>
             </div>
           </div>
@@ -93,7 +129,7 @@
               <div class="flex items-center gap-3">
                 <span class="text-sm font-bold" :style="{ color: item.color }">{{ item.count }}</span>
                 <span class="text-xs px-2 py-1 rounded-full" style="background:var(--md-surface-3); color:var(--md-on-surface-v)">
-                  {{ (sentCount + receivedCount + totalErrors) ? Math.round(item.count / (sentCount + receivedCount + totalErrors) * 100) : 0 }}%
+                  {{ (sentCount + receivedCount + totalErrorsFromAudit) ? Math.round(item.count / (sentCount + receivedCount + totalErrorsFromAudit) * 100) : 0 }}%
                 </span>
               </div>
             </div>
@@ -167,9 +203,9 @@
     <!-- Bottom row -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-      <!-- Recent errors -->
-      <div class="card p-6 lg:col-span-2">
-        <h3 class="text-sm font-semibold mb-4" style="color:var(--md-on-surface)">Последние события с ошибками</h3>
+      <!-- Recent errors from idempotency table -->
+      <div class="card p-6 lg:col-span-3">
+        <h3 class="text-sm font-semibold mb-4" style="color:var(--md-on-surface)">Операции с ошибкой (таблица idempotency)</h3>
         <div class="table-container">
           <table class="data-table" v-if="recentEvents.length">
             <thead>
@@ -188,7 +224,7 @@
             </tbody>
           </table>
           <p v-else class="text-center py-8 text-sm" style="color:var(--md-on-surface-v)">
-            {{ loading ? 'Загрузка...' : 'Ошибок нет' }}
+            {{ loading ? 'Загрузка...' : 'Операций со статусом ERROR нет' }}
           </p>
         </div>
       </div>
@@ -197,7 +233,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { Doughnut, Line } from 'vue-chartjs'
 import { Chart as ChartJS, ArcElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend } from 'chart.js'
 import { coreApi } from '../api/core.js'
@@ -218,22 +254,30 @@ const receivedCount = ref(0)
 const duplicateCount = ref(0)
 const timeoutCount = ref(0)
 const auditActivity = ref([])
+const activityTimeRange = ref('hour') // 'minute', 'hour', 'day'
 const integrations = ref([])
 const expandedIntegrations = ref(new Set())
 const recentEvents = computed(() => errorEvents.value.slice(0, 5))
 
+const timeRanges = [
+  { id: 'minute', label: '1 мин' },
+  { id: 'hour', label: '1 час' },
+  { id: 'day', label: '1 день' },
+]
+
 const statCards = computed(() => [
   {
-    label: 'Ошибки',
-    value: totalErrors.value + timeoutCount.value,
-    sub: `Финальных: ${totalErrors.value} · Таймаутов: ${timeoutCount.value}`,
+    label: 'Проблемы обработки',
+    value: totalErrorsFromAudit.value + timeoutCountFromAudit.value,
+    sub: `Обработок: ${totalErrorsFromAudit.value} · Таймаутов: ${timeoutCountFromAudit.value}`,
     icon: '⚠',
     color: 'var(--md-error)',
     bg: 'rgba(242,184,181,0.12)',
+    tooltip: 'Включает: некорректные события, ошибки маршрутизации, неверные ответы, несогласованные ответы и таймауты (из event_audit)',
   },
   {
     label: 'Дубликаты',
-    value: duplicateCount.value,
+    value: duplicateCountFromAudit.value,
     sub: 'Заблокировано идемпотенцией',
     icon: '♻',
     color: '#f6c142',
@@ -242,7 +286,7 @@ const statCards = computed(() => [
   {
     label: 'Отправлено',
     value: sentCount.value,
-    sub: 'Sender Simulator',
+    sub: '',
     icon: '↑',
     color: '#82b1ff',
     bg: 'rgba(130,177,255,0.12)',
@@ -250,7 +294,7 @@ const statCards = computed(() => [
   {
     label: 'Получено',
     value: receivedCount.value,
-    sub: 'Receiver Simulator',
+    sub: '',
     icon: '↓',
     color: 'var(--md-success)',
     bg: 'rgba(109,213,140,0.12)',
@@ -260,8 +304,8 @@ const statCards = computed(() => [
 const typeBreakdown = computed(() => [
   { label: 'Отправлено',  count: sentCount.value,      color: '#82b1ff' },
   { label: 'Получено',    count: receivedCount.value,  color: '#6dd58c' },
-  { label: 'Ошибки',      count: totalErrors.value,    color: '#f2b8b5' },
-  { label: 'Дубликаты',   count: duplicateCount.value, color: '#f6c142' },
+  { label: 'Проблемы обработки', count: totalErrorsFromAudit.value,    color: '#f2b8b5' },
+  { label: 'Дубликаты',   count: duplicateCountFromAudit.value, color: '#f6c142' },
 ])
 
 const topErrorIntegrations = computed(() => {
@@ -286,7 +330,7 @@ const typeChartData = computed(() => ({
   }],
 }))
 
-// Activity timeline - last 60 minutes (audit events only)
+// Activity timeline - based on selected time range
 const activityChartData = computed(() => {
   const labels = []
   const duplicateData = []
@@ -295,13 +339,26 @@ const activityChartData = computed(() => {
 
   const now = new Date()
 
-  // Generate last 12 time slots (5-minute intervals)
-  for (let i = 11; i >= 0; i--) {
-    const slotTime = new Date(now.getTime() - i * 5 * 60000)
-    const label = `${slotTime.getHours().toString().padStart(2, '0')}:${slotTime.getMinutes().toString().padStart(2, '0')}`
-    labels.push(label)
+  let slots, intervalMs, formatLabel
+  if (activityTimeRange.value === 'minute') {
+    slots = 12
+    intervalMs = 5 * 1000 // 5 seconds
+    formatLabel = (d) => `${d.getSeconds().toString().padStart(2, '0')}с`
+  } else if (activityTimeRange.value === 'hour') {
+    slots = 12
+    intervalMs = 5 * 60000 // 5 minutes
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  } else { // day
+    slots = 24
+    intervalMs = 60 * 60000 // 1 hour
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:00`
+  }
 
-    const slotIndex = 11 - i
+  for (let i = slots - 1; i >= 0; i--) {
+    const slotTime = new Date(now.getTime() - i * intervalMs)
+    labels.push(formatLabel(slotTime))
+
+    const slotIndex = slots - 1 - i
     const slotActivity = auditActivity.value[slotIndex] || {}
 
     duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
@@ -343,6 +400,137 @@ const activityChartData = computed(() => {
       },
     ],
   }
+})
+
+// Duplicates chart data (separate)
+const duplicatesChartData = computed(() => {
+  const labels = []
+  const duplicateData = []
+
+  const now = new Date()
+
+  let slots, intervalMs, formatLabel
+  if (activityTimeRange.value === 'minute') {
+    slots = 12
+    intervalMs = 5 * 1000
+    formatLabel = (d) => `${d.getSeconds().toString().padStart(2, '0')}с`
+  } else if (activityTimeRange.value === 'hour') {
+    slots = 12
+    intervalMs = 5 * 60000
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  } else {
+    slots = 24
+    intervalMs = 60 * 60000
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:00`
+  }
+
+  for (let i = slots - 1; i >= 0; i--) {
+    const slotTime = new Date(now.getTime() - i * intervalMs)
+    labels.push(formatLabel(slotTime))
+
+    const slotIndex = slots - 1 - i
+    const slotActivity = auditActivity.value[slotIndex] || {}
+    duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+  }
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'Дубли',
+        data: duplicateData,
+        borderColor: '#f6c142',
+        backgroundColor: 'rgba(246,193,66,0.1)',
+        tension: 0.4,
+        fill: true,
+      },
+    ],
+  }
+})
+
+// Errors & timeouts chart data (separate)
+const errorsChartData = computed(() => {
+  const labels = []
+  const timeoutData = []
+  const errorData = []
+
+  const now = new Date()
+
+  let slots, intervalMs, formatLabel
+  if (activityTimeRange.value === 'minute') {
+    slots = 12
+    intervalMs = 5 * 1000
+    formatLabel = (d) => `${d.getSeconds().toString().padStart(2, '0')}с`
+  } else if (activityTimeRange.value === 'hour') {
+    slots = 12
+    intervalMs = 5 * 60000
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+  } else {
+    slots = 24
+    intervalMs = 60 * 60000
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:00`
+  }
+
+  for (let i = slots - 1; i >= 0; i--) {
+    const slotTime = new Date(now.getTime() - i * intervalMs)
+    labels.push(formatLabel(slotTime))
+
+    const slotIndex = slots - 1 - i
+    const slotActivity = auditActivity.value[slotIndex] || {}
+
+    timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+    errorData.push(
+      (slotActivity['Некорректное входящее событие'] || 0) +
+      (slotActivity['Не найден маршрут для входящего события'] || 0) +
+      (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+      (slotActivity['Получен ответ без ожидающей операции'] || 0)
+    )
+  }
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'Таймауты',
+        data: timeoutData,
+        borderColor: '#f2b8b5',
+        backgroundColor: 'rgba(242,184,181,0.1)',
+        tension: 0.4,
+        fill: true,
+      },
+      {
+        label: 'Ошибки',
+        data: errorData,
+        borderColor: '#82b1ff',
+        backgroundColor: 'rgba(130,177,255,0.1)',
+        tension: 0.4,
+        fill: true,
+      },
+    ],
+  }
+})
+
+// Calculate totals from auditActivity for consistency with chart
+const totalErrorsFromAudit = computed(() => {
+  return auditActivity.value.reduce((sum, slot) => {
+    return sum +
+      (slot['Некорректное входящее событие'] || 0) +
+      (slot['Не найден маршрут для входящего события'] || 0) +
+      (slot['Некорректный ответ от системы-получателя'] || 0) +
+      (slot['Получен ответ без ожидающей операции'] || 0)
+  }, 0)
+})
+
+const timeoutCountFromAudit = computed(() => {
+  return auditActivity.value.reduce((sum, slot) => {
+    return sum + (slot['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+  }, 0)
+})
+
+const duplicateCountFromAudit = computed(() => {
+  return auditActivity.value.reduce((sum, slot) => {
+    return sum + (slot['Событие не прошло проверку на идемпотентность'] || 0)
+  }, 0)
 })
 
 const activityChartOptions = {
@@ -416,8 +604,6 @@ async function loadAll() {
       loadErrors(),
       loadSenderStats(),
       loadReceiverStats(),
-      loadDuplicates(),
-      loadTimeouts(),
       loadAuditActivity(),
       loadIntegrations(),
     ])
@@ -471,8 +657,14 @@ async function loadTimeouts() {
 async function loadIntegrations() {
   try {
     const res = await coreApi.getIntegrations()
+    console.log('Integrations API response:', res)
+    console.log('res.data:', res.data)
+    console.log('res.data.data:', res.data?.data)
     integrations.value = res.data?.data ?? []
-  } catch {}
+    console.log('integrations.value set to:', integrations.value)
+  } catch (e) {
+    console.error('Failed to load integrations:', e)
+  }
 }
 
 function toggleIntegration(name) {
@@ -494,8 +686,20 @@ async function loadAuditActivity() {
   const now = new Date()
   const activity = []
 
-  for (let i = 11; i >= 0; i--) {
-    const slotTime = new Date(now.getTime() - i * 5 * 60000)
+  let slots, intervalMs
+  if (activityTimeRange.value === 'minute') {
+    slots = 12
+    intervalMs = 5 * 1000 // 5 seconds
+  } else if (activityTimeRange.value === 'hour') {
+    slots = 12
+    intervalMs = 5 * 60000 // 5 minutes
+  } else { // day
+    slots = 24
+    intervalMs = 60 * 60000 // 1 hour
+  }
+
+  for (let i = slots - 1; i >= 0; i--) {
+    const slotTime = new Date(now.getTime() - i * intervalMs)
     const since = slotTime.toISOString()
     try {
       const res = await coreApi.getAuditActivity(since)
@@ -511,6 +715,10 @@ async function loadAuditActivity() {
 onMounted(() => {
   loadAll()
   const interval = setInterval(loadAll, 3000)
-  return () => clearInterval(interval)
+  onUnmounted(() => clearInterval(interval))
+})
+
+watch(activityTimeRange, () => {
+  loadAuditActivity()
 })
 </script>

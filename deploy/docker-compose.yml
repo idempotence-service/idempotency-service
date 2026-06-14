@@ -47,6 +47,8 @@ x-core-service-common: &core-service-common
       condition: service_started
     redpanda-receiver:
       condition: service_started
+  volumes:
+    - ../config:/app/config
   expose:
     - "8080"
 

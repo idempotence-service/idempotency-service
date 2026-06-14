@@ -280,6 +280,26 @@ services:
   receiver-worker:
     <<: *receiver-service
 
+  metrics-aggregator:
+    <<: *ui-build
+    restart: unless-stopped
+    environment:
+      SENDER_INSTANCES: sender-simulator:8081,sender-worker:8081
+      RECEIVER_INSTANCES: receiver-simulator:8082,receiver-worker:8082
+    depends_on:
+      sender-simulator:
+        condition: service_started
+      sender-worker:
+        condition: service_started
+      receiver-simulator:
+        condition: service_started
+      receiver-worker:
+        condition: service_started
+    expose:
+      - "9090"
+    mem_limit: 128m
+    cpus: 0.5
+
   ui-console:
     <<: *ui-build
     restart: unless-stopped
@@ -289,6 +309,8 @@ services:
       sender-simulator:
         condition: service_started
       receiver-simulator:
+        condition: service_started
+      metrics-aggregator:
         condition: service_started
     ports:
       - "18083:80"

@@ -7,6 +7,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.itmo.idempotency.core.domain.EventAuditEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
 import ru.itmo.idempotency.core.domain.IdempotencyStatus;
 import ru.itmo.idempotency.core.repository.IdempotencyRepository;
@@ -14,8 +15,11 @@ import ru.itmo.idempotency.core.repository.EventAuditRepository;
 import ru.itmo.idempotency.core.storage.StorageShardExecutor;
 import ru.itmo.idempotency.core.web.ManualReviewDtos;
 
+import java.time.OffsetDateTime;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -92,11 +96,19 @@ public class ManualReviewService {
     }
 
     @Transactional(readOnly = true)
-    public List<ManualReviewDtos.DuplicateEventItem> getDuplicateEvents() {
-        return storageShardExecutor.collectFromAllReadOnly(
-                        shardId -> eventAuditRepository.findByReasonOrderByCreateDateDesc(AuditReasons.IDEMPOTENCY_FAILED))
-                .stream()
-                .sorted(Comparator.comparing(ru.itmo.idempotency.core.domain.EventAuditEntity::getCreateDate).reversed())
+    public Page<ManualReviewDtos.DuplicateEventItem> getDuplicateEvents(int page, int limit) {
+        int fetchSize = Math.max(limit, (page + 1) * limit);
+        Sort sort = Sort.by(Sort.Direction.DESC, "createDate");
+        List<EventAuditEntity> items = storageShardExecutor.collectFromAllReadOnly(
+                shardId -> eventAuditRepository.findByReason(
+                        AuditReasons.IDEMPOTENCY_FAILED,
+                        PageRequest.of(0, fetchSize, sort)));
+
+        List<ManualReviewDtos.DuplicateEventItem> content = items.stream()
+                .sorted(Comparator.comparing(EventAuditEntity::getCreateDate).reversed()
+                        .thenComparing(EventAuditEntity::getGlobalKey))
+                .skip((long) page * limit)
+                .limit(limit)
                 .map(entity -> new ManualReviewDtos.DuplicateEventItem(
                         entity.getGlobalKey(),
                         entity.getServiceName(),
@@ -105,6 +117,10 @@ public class ManualReviewService {
                         entity.getCreateDate()
                 ))
                 .toList();
+        long total = storageShardExecutor.sumLongReadOnly(
+                shardId -> eventAuditRepository.countByReason(AuditReasons.IDEMPOTENCY_FAILED));
+
+        return new PageImpl<>(content, PageRequest.of(page, limit, sort), total);
     }
 
     @Transactional(readOnly = true)
@@ -116,5 +132,18 @@ public class ManualReviewService {
     public long getTimeoutCount() {
         return storageShardExecutor.sumLongReadOnly(
                 shardId -> eventAuditRepository.countDistinctGlobalKeyByReason(AuditReasons.ASYNC_REPLY_TIMEOUT));
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Long> getAuditActivitySince(OffsetDateTime since) {
+        Map<String, Long> aggregated = new HashMap<>();
+        storageShardExecutor.collectFromAllReadOnly(
+                shardId -> eventAuditRepository.countByReasonSince(since))
+                .forEach(row -> {
+                    String reason = (String) row[0];
+                    Long count = (Long) row[1];
+                    aggregated.merge(reason, count, Long::sum);
+                });
+        return aggregated;
     }
 }

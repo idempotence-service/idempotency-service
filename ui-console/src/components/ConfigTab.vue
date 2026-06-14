@@ -167,78 +167,6 @@
         </div>
       </div>
 
-      <!-- Integrations -->
-      <div class="card p-6 space-y-4">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-xl flex items-center justify-center" style="background:rgba(130,177,255,0.12)">
-            <svg class="w-4 h-4" style="color:#82b1ff" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-            </svg>
-          </div>
-          <div>
-            <h3 class="font-semibold text-sm" style="color:var(--md-on-surface)">Интеграции</h3>
-            <p class="text-xs" style="color:var(--md-on-surface-v)">Зарегистрированные маршруты · нажмите для просмотра каналов</p>
-          </div>
-        </div>
-
-        <div v-if="!integrations.length" class="flex items-center justify-center py-8 text-sm" style="color:var(--md-on-surface-v)">
-          Нет зарегистрированных интеграций
-        </div>
-
-        <div v-else class="space-y-2">
-          <div
-            v-for="intg in integrations" :key="intg.integrationName"
-            class="rounded-xl overflow-hidden"
-            style="border:1px solid var(--md-outline-v)"
-          >
-            <button
-              class="w-full flex items-center justify-between px-4 py-3 text-left"
-              style="background:var(--md-surface-2)"
-              @click="toggleIntegration(intg.integrationName)"
-            >
-              <div class="flex items-center gap-3 min-w-0">
-                <span class="text-sm font-semibold mono truncate" style="color:var(--md-on-surface)">{{ intg.integrationName }}</span>
-                <span v-if="intg.serviceName" class="text-xs px-2 py-0.5 rounded-full shrink-0" style="background:var(--md-surface-3); color:var(--md-on-surface-v)">{{ intg.serviceName }}</span>
-              </div>
-              <div class="flex items-center gap-3 shrink-0 ml-3">
-                <span
-                  class="text-xs px-2.5 py-1 rounded-full font-medium"
-                  :style="intg.idempotencyEnabled
-                    ? 'background:rgba(109,213,140,0.15); color:var(--md-success)'
-                    : 'background:var(--md-surface-3); color:var(--md-on-surface-v)'"
-                >
-                  {{ intg.idempotencyEnabled ? 'Идемпотентность ✓' : 'Идемпотентность ✗' }}
-                </span>
-                <svg
-                  class="w-4 h-4 transition-transform duration-200"
-                  :class="expandedIntegrations.has(intg.integrationName) ? 'rotate-180' : ''"
-                  style="color:var(--md-on-surface-v)" fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                >
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                </svg>
-              </div>
-            </button>
-
-            <div v-if="expandedIntegrations.has(intg.integrationName)"
-                 class="grid grid-cols-2 gap-px p-px"
-                 style="background:var(--md-outline-v)">
-              <div
-                v-for="[label, ch] in channelEntries(intg)" :key="label"
-                class="p-3 space-y-1"
-                style="background:var(--md-surface-1)"
-              >
-                <p class="text-xs font-semibold uppercase tracking-wide" style="color:var(--md-primary)">{{ label }}</p>
-                <p class="text-xs mono font-medium" style="color:var(--md-on-surface)">{{ ch.topic }}</p>
-                <p class="text-xs" style="color:var(--md-on-surface-v)">{{ ch.bootstrapServers }}</p>
-                <p v-if="ch.group" class="text-xs" style="color:var(--md-on-surface-v)">group: {{ ch.group }}</p>
-                <p class="text-xs" style="color:var(--md-on-surface-v)">{{ ch.partitions }}p · rf {{ ch.replicationFactor }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       <!-- Simulation -->
       <div class="card p-6 space-y-5">
         <div class="flex items-center gap-3">
@@ -338,24 +266,6 @@ const listener = reactive({
   replyConcurrency: 3,
 })
 
-const integrations = ref([])
-const expandedIntegrations = ref(new Set())
-
-function toggleIntegration(name) {
-  const s = new Set(expandedIntegrations.value)
-  if (s.has(name)) { s.delete(name) } else { s.add(name) }
-  expandedIntegrations.value = s
-}
-
-function channelEntries(intg) {
-  return [
-    ['Inbound', intg.inbound],
-    ['Request Out', intg.requestOut],
-    ['Reply In', intg.replyIn],
-    ['Reply Out', intg.replyOut],
-  ].filter(([, ch]) => ch != null)
-}
-
 const simulation = reactive({
   enabled: false,
   integration: 'system1-to-system2',
@@ -365,16 +275,8 @@ const simulation = reactive({
   pauseSeconds: 5,
 })
 
-async function loadIntegrations() {
-  try {
-    const res = await coreApi.getIntegrations()
-    integrations.value = res.data?.data ?? []
-  } catch {}
-}
-
 async function loadAll() {
   loading.value = true
-  loadIntegrations()
   try {
     const [coreRes, simRes] = await Promise.all([
       coreApi.getConfig(),

@@ -454,7 +454,7 @@ async function loadAll() {
     }
     if (dupRes.status === 'fulfilled') {
       const d = dupRes.value.data?.data
-      duplicateEvents.value = Array.isArray(d) ? d : []
+      duplicateEvents.value = d?.content ?? []
     }
     // Build unified message list only after all data received
     rebuildMessages()

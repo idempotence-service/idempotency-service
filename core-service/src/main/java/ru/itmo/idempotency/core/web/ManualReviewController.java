@@ -16,7 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 import ru.itmo.idempotency.common.web.ApiResponse;
 import ru.itmo.idempotency.core.service.ManualReviewService;
 
-import java.util.List;
+import java.time.OffsetDateTime;
+import java.util.Map;
 
 @Validated
 @RestController
@@ -47,8 +48,11 @@ public class ManualReviewController {
     }
 
     @GetMapping("/get-duplicate-events")
-    public ApiResponse<List<ManualReviewDtos.DuplicateEventItem>> getDuplicateEvents() {
-        return ApiResponse.success(manualReviewService.getDuplicateEvents());
+    public ApiResponse<Page<ManualReviewDtos.DuplicateEventItem>> getDuplicateEvents(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(500) int limit
+    ) {
+        return ApiResponse.success(manualReviewService.getDuplicateEvents(page, limit));
     }
 
     @GetMapping("/get-duplicate-count")
@@ -59,5 +63,13 @@ public class ManualReviewController {
     @GetMapping("/get-timeout-count")
     public ApiResponse<Long> getTimeoutCount() {
         return ApiResponse.success(manualReviewService.getTimeoutCount());
+    }
+
+    @GetMapping("/get-audit-activity")
+    public ApiResponse<Map<String, Long>> getAuditActivity(
+            @RequestParam String since
+    ) {
+        OffsetDateTime sinceTime = OffsetDateTime.parse(since);
+        return ApiResponse.success(manualReviewService.getAuditActivitySince(sinceTime));
     }
 }

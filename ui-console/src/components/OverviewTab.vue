@@ -5,7 +5,6 @@
     <div class="flex items-center justify-between">
       <div>
         <h2 class="text-2xl font-semibold" style="color:var(--md-on-surface)">Обзор системы</h2>
-        <p class="text-sm mt-1" style="color:var(--md-on-surface-v)">Аналитика в реальном времени · обновлено {{ lastRefresh }}</p>
       </div>
       <button @click="loadAll" :disabled="loading" class="btn-tonal">
         <svg class="w-4 h-4" :class="{ 'animate-spin': loading }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -41,15 +40,15 @@
         <h3 class="text-sm font-semibold" style="color:var(--md-on-surface)">Активность за последний час</h3>
         <div class="flex items-center gap-3">
           <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full" style="background:#82b1ff"></div>
-            <span class="text-xs" style="color:var(--md-on-surface-v)">Отправлено</span>
-          </div>
-          <div class="flex items-center gap-1.5">
-            <div class="w-2 h-2 rounded-full" style="background:var(--md-success)"></div>
-            <span class="text-xs" style="color:var(--md-on-surface-v)">Получено</span>
+            <div class="w-2 h-2 rounded-full" style="background:#f6c142"></div>
+            <span class="text-xs" style="color:var(--md-on-surface-v)">Дубли</span>
           </div>
           <div class="flex items-center gap-1.5">
             <div class="w-2 h-2 rounded-full" style="background:var(--md-error)"></div>
+            <span class="text-xs" style="color:var(--md-on-surface-v)">Таймауты</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <div class="w-2 h-2 rounded-full" style="background:#82b1ff"></div>
             <span class="text-xs" style="color:var(--md-on-surface-v)">Ошибки</span>
           </div>
         </div>
@@ -65,7 +64,7 @@
       </div>
     </div>
 
-    <!-- Charts Row: Message Types + Top Errors by Integration -->
+    <!-- Charts Row: Message Types + Integrations -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
       <!-- Message Type Distribution -->
@@ -102,26 +101,62 @@
         </div>
       </div>
 
-      <!-- Top Error Integrations -->
+      <!-- Integrations -->
       <div class="card p-6">
-        <h3 class="text-sm font-semibold mb-4" style="color:var(--md-on-surface)">Топ ошибок по интеграциям</h3>
+        <h3 class="text-sm font-semibold mb-4" style="color:var(--md-on-surface)">Интеграции</h3>
         <div v-if="loading" class="flex items-center justify-center h-44 text-sm" style="color:var(--md-on-surface-v)">
           Загрузка...
         </div>
-        <div v-else-if="!topErrorIntegrations.length" class="flex items-center justify-center h-44 text-sm" style="color:var(--md-on-surface-v)">
-          Нет данных об ошибках
+        <div v-else-if="!integrations.length" class="flex items-center justify-center h-44 text-sm" style="color:var(--md-on-surface-v)">
+          Нет зарегистрированных интеграций
         </div>
         <div v-else class="space-y-2">
-          <div v-for="(item, i) in topErrorIntegrations" :key="item.name" class="flex items-center gap-3">
-            <span class="text-xs font-bold w-5 text-center" style="color:var(--md-on-surface-v)">{{ i + 1 }}</span>
-            <div class="flex-1">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-xs font-medium" style="color:var(--md-on-surface)">{{ item.name }}</span>
-                <span class="text-xs font-bold" style="color:var(--md-error)">{{ item.count }}</span>
+          <div
+            v-for="intg in integrations" :key="intg.integrationName"
+            class="rounded-xl overflow-hidden"
+            style="border:1px solid var(--md-outline-v)"
+          >
+            <button
+              class="w-full flex items-center justify-between px-4 py-3 text-left"
+              style="background:var(--md-surface-2)"
+              @click="toggleIntegration(intg.integrationName)"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <span class="text-sm font-semibold mono truncate" style="color:var(--md-on-surface)">{{ intg.integrationName }}</span>
+                <span v-if="intg.serviceName" class="text-xs px-2 py-0.5 rounded-full shrink-0" style="background:var(--md-surface-3); color:var(--md-on-surface-v)">{{ intg.serviceName }}</span>
               </div>
-              <div class="h-2 rounded-full overflow-hidden" style="background:var(--md-surface-3)">
-                <div class="h-full rounded-full transition-all duration-500" style="background:var(--md-error)"
-                  :style="{ width: (item.count / topErrorIntegrations[0].count * 100) + '%' }"></div>
+              <div class="flex items-center gap-3 shrink-0 ml-3">
+                <span
+                  class="text-xs px-2.5 py-1 rounded-full font-medium"
+                  :style="intg.idempotencyEnabled
+                    ? 'background:rgba(109,213,140,0.15); color:var(--md-success)'
+                    : 'background:var(--md-surface-3); color:var(--md-on-surface-v)'"
+                >
+                  {{ intg.idempotencyEnabled ? 'Идемпотентность ✓' : 'Идемпотентность ✗' }}
+                </span>
+                <svg
+                  class="w-4 h-4 transition-transform duration-200"
+                  :class="expandedIntegrations.has(intg.integrationName) ? 'rotate-180' : ''"
+                  style="color:var(--md-on-surface-v)" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                >
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </div>
+            </button>
+
+            <div v-if="expandedIntegrations.has(intg.integrationName)"
+                 class="grid grid-cols-2 gap-px p-px"
+                 style="background:var(--md-outline-v)">
+              <div
+                v-for="[label, ch] in channelEntries(intg)" :key="label"
+                class="p-3 space-y-1"
+                style="background:var(--md-surface-1)"
+              >
+                <p class="text-xs font-semibold uppercase tracking-wide" style="color:var(--md-primary)">{{ label }}</p>
+                <p class="text-xs mono font-medium" style="color:var(--md-on-surface)">{{ ch.topic }}</p>
+                <p class="text-xs" style="color:var(--md-on-surface-v)">{{ ch.bootstrapServers }}</p>
+                <p v-if="ch.group" class="text-xs" style="color:var(--md-on-surface-v)">group: {{ ch.group }}</p>
+                <p class="text-xs" style="color:var(--md-on-surface-v)">{{ ch.partitions }}p · rf {{ ch.replicationFactor }}</p>
               </div>
             </div>
           </div>
@@ -173,6 +208,7 @@ import StatusBadge from './StatusBadge.vue'
 ChartJS.register(ArcElement, LineElement, PointElement, CategoryScale, LinearScale, Tooltip, Legend)
 
 const loading = ref(false)
+const initialLoading = ref(true)
 const lastRefresh = ref('—')
 const errorEvents = ref([])
 const totalErrors = ref(0)
@@ -181,6 +217,9 @@ const repliesCount = ref(0)
 const receivedCount = ref(0)
 const duplicateCount = ref(0)
 const timeoutCount = ref(0)
+const auditActivity = ref([])
+const integrations = ref([])
+const expandedIntegrations = ref(new Set())
 const recentEvents = computed(() => errorEvents.value.slice(0, 5))
 
 const statCards = computed(() => [
@@ -216,14 +255,6 @@ const statCards = computed(() => [
     color: 'var(--md-success)',
     bg: 'rgba(109,213,140,0.12)',
   },
-  {
-    label: 'Интеграций',
-    value: new Set(errorEvents.value.map(e => e.integration)).size || '—',
-    sub: 'Затронуто интеграций',
-    icon: '⇄',
-    color: 'var(--md-primary)',
-    bg: 'rgba(208,188,255,0.12)',
-  },
 ])
 
 const typeBreakdown = computed(() => [
@@ -255,53 +286,58 @@ const typeChartData = computed(() => ({
   }],
 }))
 
-// Activity timeline - last 60 minutes
+// Activity timeline - last 60 minutes (audit events only)
 const activityChartData = computed(() => {
   const labels = []
-  const sentData = []
-  const receivedData = []
+  const duplicateData = []
+  const timeoutData = []
   const errorData = []
-  
+
   const now = new Date()
-  
+
   // Generate last 12 time slots (5-minute intervals)
   for (let i = 11; i >= 0; i--) {
     const slotTime = new Date(now.getTime() - i * 5 * 60000)
     const label = `${slotTime.getHours().toString().padStart(2, '0')}:${slotTime.getMinutes().toString().padStart(2, '0')}`
     labels.push(label)
-    
-    // Count events in this 5-minute window (simulated based on index)
-    // In real implementation, this would filter by actual timestamps
+
     const slotIndex = 11 - i
-    sentData.push(Math.max(0, Math.floor(sentCount.value * (slotIndex % 3 === 0 ? 0.3 : slotIndex % 2 === 0 ? 0.2 : 0.1))))
-    receivedData.push(Math.max(0, Math.floor(receivedCount.value * (slotIndex % 4 === 0 ? 0.4 : slotIndex % 3 === 0 ? 0.2 : 0.1))))
-    errorData.push(Math.max(0, Math.floor(totalErrors.value * (slotIndex === 11 ? 0.5 : slotIndex > 8 ? 0.2 : 0.1))))
+    const slotActivity = auditActivity.value[slotIndex] || {}
+
+    duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+    timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+    errorData.push(
+      (slotActivity['Некорректное входящее событие'] || 0) +
+      (slotActivity['Не найден маршрут для входящего события'] || 0) +
+      (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+      (slotActivity['Получен ответ без ожидающей операции'] || 0)
+    )
   }
-  
+
   return {
     labels,
     datasets: [
       {
-        label: 'Отправлено',
-        data: sentData,
-        borderColor: '#82b1ff',
-        backgroundColor: 'rgba(130,177,255,0.1)',
+        label: 'Дубли',
+        data: duplicateData,
+        borderColor: '#f6c142',
+        backgroundColor: 'rgba(246,193,66,0.1)',
         tension: 0.4,
         fill: true,
       },
       {
-        label: 'Получено',
-        data: receivedData,
-        borderColor: '#6dd58c',
-        backgroundColor: 'rgba(109,213,140,0.1)',
+        label: 'Таймауты',
+        data: timeoutData,
+        borderColor: '#f2b8b5',
+        backgroundColor: 'rgba(242,184,181,0.1)',
         tension: 0.4,
         fill: true,
       },
       {
         label: 'Ошибки',
         data: errorData,
-        borderColor: '#f2b8b5',
-        backgroundColor: 'rgba(242,184,181,0.1)',
+        borderColor: '#82b1ff',
+        backgroundColor: 'rgba(130,177,255,0.1)',
         tension: 0.4,
         fill: true,
       },
@@ -372,7 +408,9 @@ function truncate(s, n) {
 }
 
 async function loadAll() {
-  loading.value = true
+  if (initialLoading.value) {
+    loading.value = true
+  }
   try {
     await Promise.allSettled([
       loadErrors(),
@@ -380,10 +418,13 @@ async function loadAll() {
       loadReceiverStats(),
       loadDuplicates(),
       loadTimeouts(),
+      loadAuditActivity(),
+      loadIntegrations(),
     ])
     lastRefresh.value = new Date().toLocaleTimeString('ru-RU')
   } finally {
     loading.value = false
+    initialLoading.value = false
   }
 }
 
@@ -427,5 +468,49 @@ async function loadTimeouts() {
   } catch {}
 }
 
-onMounted(loadAll)
+async function loadIntegrations() {
+  try {
+    const res = await coreApi.getIntegrations()
+    integrations.value = res.data?.data ?? []
+  } catch {}
+}
+
+function toggleIntegration(name) {
+  const s = new Set(expandedIntegrations.value)
+  if (s.has(name)) { s.delete(name) } else { s.add(name) }
+  expandedIntegrations.value = s
+}
+
+function channelEntries(intg) {
+  return [
+    ['Inbound', intg.inbound],
+    ['Request Out', intg.requestOut],
+    ['Reply In', intg.replyIn],
+    ['Reply Out', intg.replyOut],
+  ].filter(([, ch]) => ch != null)
+}
+
+async function loadAuditActivity() {
+  const now = new Date()
+  const activity = []
+
+  for (let i = 11; i >= 0; i--) {
+    const slotTime = new Date(now.getTime() - i * 5 * 60000)
+    const since = slotTime.toISOString()
+    try {
+      const res = await coreApi.getAuditActivity(since)
+      activity.push(res.data?.data ?? {})
+    } catch {
+      activity.push({})
+    }
+  }
+
+  auditActivity.value = activity
+}
+
+onMounted(() => {
+  loadAll()
+  const interval = setInterval(loadAll, 3000)
+  return () => clearInterval(interval)
+})
 </script>

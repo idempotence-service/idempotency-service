@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 export const coreClient = axios.create({
-  baseURL: '/core',
+  baseURL: '',
   headers: { Authorization: 'Bearer operator-token' },
 })
 export const senderClient = axios.create({ baseURL: '' })

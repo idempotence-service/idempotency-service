@@ -223,7 +223,7 @@ services:
       - "9090"
 
   ui-console:
-    image: idempotency-ui-console:latest
+    image: ${UI_CONSOLE_IMAGE}
     restart: on-failure
     depends_on:
       core-service-1:

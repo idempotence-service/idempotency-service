@@ -67,11 +67,10 @@ class CoreManualReviewApiIntegrationTest {
     }
 
     @Test
-    void shouldRequireAuthorizationForManualReviewApi() throws Exception {
+    void shouldAllowManualReviewApiWithoutAuthorization() throws Exception {
         mockMvc.perform(get("/get-error-events"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.error.code").value("TECHNICAL_ERROR_01"));
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     @Test

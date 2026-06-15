@@ -48,7 +48,7 @@ x-core-service-common: &core-service-common
     redpanda-receiver:
       condition: service_started
   volumes:
-    - ../config:/app/config
+    - ./config:/app/config
   expose:
     - "8080"
 
@@ -189,8 +189,8 @@ services:
     ports:
       - "18081:8081"
     volumes:
-      - ../config:/app/config
-      - ../sender-simulator/src/main/resources/application.yml:/app/application.yml
+      - ./config:/app/config
+      - ./sender-application.yml:/app/application.yml
 
   receiver-simulator:
     image: ${RECEIVER_SIMULATOR_IMAGE}
@@ -205,8 +205,8 @@ services:
     ports:
       - "18082:8082"
     volumes:
-      - ../config:/app/config
-      - ../receiver-simulator/src/main/resources/application.yml:/app/application.yml
+      - ./config:/app/config
+      - ./receiver-application.yml:/app/application.yml
 
   metrics-aggregator:
     image: ${METRICS_AGGREGATOR_IMAGE}

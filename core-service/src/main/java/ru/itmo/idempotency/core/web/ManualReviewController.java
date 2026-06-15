@@ -67,8 +67,11 @@ public class ManualReviewController {
 
     @GetMapping("/get-audit-activity")
     public ApiResponse<Map<String, Long>> getAuditActivity(
-            @RequestParam String since
+            @RequestParam(required = false) String since
     ) {
+        if (since == null || since.isEmpty()) {
+            return ApiResponse.success(manualReviewService.getAuditActivitySince(null));
+        }
         OffsetDateTime sinceTime = OffsetDateTime.parse(since);
         return ApiResponse.success(manualReviewService.getAuditActivitySince(sinceTime));
     }

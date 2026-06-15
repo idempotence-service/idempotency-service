@@ -7,6 +7,7 @@ import ru.itmo.idempotency.receiver.config.ReceiverProperties;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,6 +46,20 @@ public class ReceiverStateService {
         return messages.snapshot();
     }
 
+    public List<ReceivedMessage> messages(String since) {
+        if (since == null || since.isEmpty()) {
+            return messages.snapshot();
+        }
+        try {
+            OffsetDateTime sinceTime = OffsetDateTime.parse(since);
+            return messages.snapshot().stream()
+                    .filter(msg -> msg.timestamp() != null && !msg.timestamp().isBefore(sinceTime))
+                    .toList();
+        } catch (DateTimeParseException e) {
+            return messages.snapshot();
+        }
+    }
+
     public ReceiverMode modeFor(String integration) {
         return modes.getOrDefault(integration, ReceiverMode.AUTO_SUCCESS);
     }
@@ -62,14 +77,47 @@ public class ReceiverStateService {
     }
 
     public StateStats stats() {
-        return new StateStats(
-                totalReceived.sum(),
-                totalDuplicates.sum(),
-                messages.size(),
-                seenGlobalKeyFingerprints.size(),
-                receiverProperties.getState().isStoreHistory(),
-                receiverProperties.getState().getHistoryLimit()
-        );
+        return stats(null);
+    }
+
+    public StateStats stats(String since) {
+        if (since == null || since.isEmpty()) {
+            return new StateStats(
+                    totalReceived.sum(),
+                    totalDuplicates.sum(),
+                    messages.size(),
+                    seenGlobalKeyFingerprints.size(),
+                    receiverProperties.getState().isStoreHistory(),
+                    receiverProperties.getState().getHistoryLimit()
+            );
+        }
+        
+        try {
+            OffsetDateTime sinceTime = OffsetDateTime.parse(since);
+            long receivedCount = messages.snapshot().stream()
+                    .filter(msg -> msg.timestamp() != null && !msg.timestamp().isBefore(sinceTime))
+                    .count();
+            long duplicateCount = messages.snapshot().stream()
+                    .filter(msg -> msg.timestamp() != null && !msg.timestamp().isBefore(sinceTime) && msg.duplicate())
+                    .count();
+            return new StateStats(
+                    receivedCount,
+                    duplicateCount,
+                    messages.size(),
+                    seenGlobalKeyFingerprints.size(),
+                    receiverProperties.getState().isStoreHistory(),
+                    receiverProperties.getState().getHistoryLimit()
+            );
+        } catch (DateTimeParseException e) {
+            return new StateStats(
+                    totalReceived.sum(),
+                    totalDuplicates.sum(),
+                    messages.size(),
+                    seenGlobalKeyFingerprints.size(),
+                    receiverProperties.getState().isStoreHistory(),
+                    receiverProperties.getState().getHistoryLimit()
+            );
+        }
     }
 
     public record ReceivedMessage(String integration,

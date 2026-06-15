@@ -17,7 +17,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }))
 app.get('/api/sender/stats', async (req, res) => {
   try {
     const results = await Promise.allSettled(
-      SENDER_INSTANCES.map(host => axios.get(`http://${host}/api/sender/stats`))
+      SENDER_INSTANCES.map(host => axios.get(`http://${host}/api/sender/stats`, { params: req.query }))
     )
     
     const aggregated = {
@@ -49,7 +49,7 @@ app.get('/api/sender/stats', async (req, res) => {
 app.get('/api/sender/sent', async (req, res) => {
   try {
     const results = await Promise.allSettled(
-      SENDER_INSTANCES.map(host => axios.get(`http://${host}/api/sender/sent`))
+      SENDER_INSTANCES.map(host => axios.get(`http://${host}/api/sender/sent`, { params: req.query }))
     )
     
     const allMessages = []
@@ -93,7 +93,7 @@ app.get('/api/sender/replies', async (req, res) => {
 app.get('/api/receiver/stats', async (req, res) => {
   try {
     const results = await Promise.allSettled(
-      RECEIVER_INSTANCES.map(host => axios.get(`http://${host}/api/receiver/stats`))
+      RECEIVER_INSTANCES.map(host => axios.get(`http://${host}/api/receiver/stats`, { params: req.query }))
     )
     
     const aggregated = {
@@ -125,7 +125,7 @@ app.get('/api/receiver/stats', async (req, res) => {
 app.get('/api/receiver/events', async (req, res) => {
   try {
     const results = await Promise.allSettled(
-      RECEIVER_INSTANCES.map(host => axios.get(`http://${host}/api/receiver/events`))
+      RECEIVER_INSTANCES.map(host => axios.get(`http://${host}/api/receiver/events`, { params: req.query }))
     )
     
     const allEvents = []

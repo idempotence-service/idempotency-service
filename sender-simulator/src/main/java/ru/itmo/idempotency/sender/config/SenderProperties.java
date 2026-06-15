@@ -38,6 +38,6 @@ public class SenderProperties {
     public static class State {
         private boolean storeHistory = true;
         @Min(1)
-        private int historyLimit = 1000;
+        private int historyLimit;
     }
 }

@@ -15,21 +15,40 @@
       </button>
     </div>
 
-    <!-- Stat Cards -->
-    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-      <div v-for="card in statCards" :key="card.label" class="card p-5 flex flex-col gap-3">
-        <div class="flex items-center justify-between">
-          <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--md-on-surface-v)">{{ card.label }}</span>
-          <div class="w-8 h-8 rounded-xl flex items-center justify-center" :style="{ background: card.bg }">
-            <span class="text-base">{{ card.icon }}</span>
+    <!-- System Health Indicator -->
+    <div class="card p-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-full flex items-center justify-center"
+               :style="systemHealth.status === 'healthy' 
+                 ? 'background:rgba(109,213,140,0.15)' 
+                 : systemHealth.status === 'degraded' 
+                 ? 'background:rgba(246,193,66,0.15)' 
+                 : 'background:rgba(242,113,113,0.15)'">
+            <div class="w-3 h-3 rounded-full animate-pulse"
+                 :style="systemHealth.status === 'healthy' 
+                   ? 'background:#6dd58c' 
+                   : systemHealth.status === 'degraded' 
+                   ? 'background:#f6c142' 
+                   : 'background:#f27171'"></div>
+          </div>
+          <div>
+            <h3 class="text-sm font-semibold" style="color:var(--md-on-surface)">
+              Статус системы: 
+              <span :style="systemHealth.status === 'healthy' 
+                ? 'color:#6dd58c' 
+                : systemHealth.status === 'degraded' 
+                ? 'color:#f6c142' 
+                : 'color:#f27171'">
+                {{ systemHealth.label }}
+              </span>
+            </h3>
+            <p class="text-xs mt-0.5" style="color:var(--md-on-surface-v)">{{ systemHealth.message }}</p>
           </div>
         </div>
-        <div>
-          <div class="text-3xl font-bold tracking-tight" :style="{ color: card.color }">
-            <span v-if="loading">—</span>
-            <span v-else>{{ card.value }}</span>
-          </div>
-          <p class="text-xs mt-1" style="color:var(--md-on-surface-v)">{{ card.sub }}</p>
+        <div class="text-right">
+          <p class="text-xs font-medium" style="color:var(--md-on-surface-v)">Последнее обновление</p>
+          <p class="text-sm font-semibold" style="color:var(--md-on-surface)">{{ lastRefresh }}</p>
         </div>
       </div>
     </div>
@@ -48,6 +67,25 @@
         >
           {{ range.label }}
         </button>
+      </div>
+    </div>
+
+    <!-- Stat Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div v-for="card in statCards" :key="card.label" class="card p-5 flex flex-col gap-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold uppercase tracking-wider" style="color:var(--md-on-surface-v)">{{ card.label }}</span>
+          <div class="w-8 h-8 rounded-xl flex items-center justify-center" :style="{ background: card.bg }">
+            <span class="text-base">{{ card.icon }}</span>
+          </div>
+        </div>
+        <div>
+          <div class="text-3xl font-bold tracking-tight" :style="{ color: card.color }">
+            <span v-if="loading">—</span>
+            <span v-else>{{ card.value }}</span>
+          </div>
+          <p class="text-xs mt-1" style="color:var(--md-on-surface-v)">{{ card.sub }}</p>
+        </div>
       </div>
     </div>
 
@@ -98,6 +136,32 @@
           <Line :data="errorsChartData" :options="activityChartOptions" />
         </div>
       </div>
+
+      <!-- Sent/Received Chart -->
+      <div class="card p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-sm font-semibold" style="color:var(--md-on-surface)">Отправлено / Получено</h3>
+          <div class="flex items-center gap-3">
+            <div class="flex items-center gap-1.5">
+              <div class="w-2 h-2 rounded-full" style="background:#82b1ff"></div>
+              <span class="text-xs" style="color:var(--md-on-surface-v)">Отправлено</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2 h-2 rounded-full" style="background:#6dd58c"></div>
+              <span class="text-xs" style="color:var(--md-on-surface-v)">Получено</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="loading" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
+          Загрузка...
+        </div>
+        <div v-else-if="!messageChartData.labels.length" class="flex items-center justify-center h-56 text-sm" style="color:var(--md-on-surface-v)">
+          Нет данных
+        </div>
+        <div v-else class="h-56">
+          <Line :data="messageChartData" :options="activityChartOptions" />
+        </div>
+      </div>
     </div>
 
     <!-- Charts Row: Message Types + Integrations -->
@@ -121,12 +185,10 @@
             </div>
           </div>
           <div class="flex-1 w-full lg:w-auto space-y-3">
-            <div v-for="item in typeBreakdown" :key="item.label" class="flex items-center justify-between p-2 rounded-xl" style="background:var(--md-surface-2)">
-              <div class="flex items-center gap-3">
-                <div class="w-3 h-3 rounded-full" :style="{ background: item.color }"></div>
-                <span class="text-sm font-medium" style="color:var(--md-on-surface)">{{ item.label }}</span>
-              </div>
-              <div class="flex items-center gap-3">
+            <div v-for="item in typeBreakdown" :key="item.label" class="flex items-center gap-4 p-2 rounded-xl" style="background:var(--md-surface-2)">
+              <div class="w-3 h-3 rounded-full shrink-0" :style="{ background: item.color }"></div>
+              <span class="text-sm font-medium" style="color:var(--md-on-surface)">{{ item.label }}</span>
+              <div class="flex items-center gap-2 ml-auto">
                 <span class="text-sm font-bold" :style="{ color: item.color }">{{ item.count }}</span>
                 <span class="text-xs px-2 py-1 rounded-full" style="background:var(--md-surface-3); color:var(--md-on-surface-v)">
                   {{ (sentCount + receivedCount + totalErrorsFromAudit) ? Math.round(item.count / (sentCount + receivedCount + totalErrorsFromAudit) * 100) : 0 }}%
@@ -258,18 +320,37 @@ const activityTimeRange = ref('hour') // 'minute', 'hour', 'day'
 const integrations = ref([])
 const expandedIntegrations = ref(new Set())
 const recentEvents = computed(() => errorEvents.value.slice(0, 5))
+const sentMessages = ref([])
+const receivedMessages = ref([])
 
 const timeRanges = [
   { id: 'minute', label: '1 мин' },
   { id: 'hour', label: '1 час' },
   { id: 'day', label: '1 день' },
+  { id: 'all', label: 'Все время' },
 ]
 
 const statCards = computed(() => [
   {
+    label: 'Success Rate',
+    value: successRate.value,
+    sub: `${successfulMessages.value} из ${totalMessages.value} успешно`,
+    icon: '✓',
+    color: successRateNumeric.value >= 95 ? '#6dd58c' : successRateNumeric.value >= 80 ? '#f6c142' : '#f27171',
+    bg: successRateNumeric.value >= 95 ? 'rgba(109,213,140,0.12)' : successRateNumeric.value >= 80 ? 'rgba(246,193,66,0.12)' : 'rgba(242,113,113,0.12)',
+  },
+  {
+    label: 'Throughput',
+    value: throughput.value,
+    sub: throughputLabel.value,
+    icon: '⚡',
+    color: '#82b1ff',
+    bg: 'rgba(130,177,255,0.12)',
+  },
+  {
     label: 'Проблемы обработки',
-    value: totalErrorsFromAudit.value + timeoutCountFromAudit.value,
-    sub: `Обработок: ${totalErrorsFromAudit.value} · Таймаутов: ${timeoutCountFromAudit.value}`,
+    value: totalErrors.value + timeoutCount.value,
+    sub: `Обработок: ${totalErrors.value} · Таймаутов: ${timeoutCount.value}`,
     icon: '⚠',
     color: 'var(--md-error)',
     bg: 'rgba(242,184,181,0.12)',
@@ -277,7 +358,7 @@ const statCards = computed(() => [
   },
   {
     label: 'Дубликаты',
-    value: duplicateCountFromAudit.value,
+    value: duplicateCount.value,
     sub: 'Заблокировано идемпотенцией',
     icon: '♻',
     color: '#f6c142',
@@ -285,7 +366,7 @@ const statCards = computed(() => [
   },
   {
     label: 'Отправлено',
-    value: sentCount.value,
+    value: sentCountInRange.value,
     sub: '',
     icon: '↑',
     color: '#82b1ff',
@@ -293,7 +374,7 @@ const statCards = computed(() => [
   },
   {
     label: 'Получено',
-    value: receivedCount.value,
+    value: receivedCountInRange.value,
     sub: '',
     icon: '↓',
     color: 'var(--md-success)',
@@ -302,10 +383,11 @@ const statCards = computed(() => [
 ])
 
 const typeBreakdown = computed(() => [
-  { label: 'Отправлено',  count: sentCount.value,      color: '#82b1ff' },
-  { label: 'Получено',    count: receivedCount.value,  color: '#6dd58c' },
-  { label: 'Проблемы обработки', count: totalErrorsFromAudit.value,    color: '#f2b8b5' },
-  { label: 'Дубликаты',   count: duplicateCountFromAudit.value, color: '#f6c142' },
+  { label: 'Отправлено',  count: sentCountInRange.value,      color: '#82b1ff' },
+  { label: 'Получено',    count: receivedCountInRange.value,  color: '#6dd58c' },
+  { label: 'Проблемы обработки', count: totalErrors.value,    color: '#f2b8b5' },
+  { label: 'Таймауты',   count: timeoutCount.value, color: '#ff6b6b' },
+  { label: 'Дубликаты',   count: duplicateCount.value, color: '#f6c142' },
 ])
 
 const topErrorIntegrations = computed(() => {
@@ -340,35 +422,102 @@ const activityChartData = computed(() => {
   const now = new Date()
 
   let slots, intervalMs, formatLabel
-  if (activityTimeRange.value === 'minute') {
-    slots = 12
-    intervalMs = 5 * 1000 // 5 seconds
-    formatLabel = (d) => `${d.getSeconds().toString().padStart(2, '0')}с`
+  if (activityTimeRange.value === 'all') {
+    const totalSlots = auditActivity.value.length
+    if (totalSlots === 0) {
+      return { labels: [], datasets: [] }
+    }
+    
+    const now = new Date()
+    const oldestSlotTime = new Date(now.getTime() - (totalSlots - 1) * intervalMs)
+    const timeRange = getAdaptiveTimeRangeForData(oldestSlotTime.getTime(), now.getTime(), totalSlots)
+    
+    slots = Math.min(totalSlots, 48)
+    intervalMs = timeRange.interval
+    formatLabel = timeRange.format
+    
+    for (let i = slots - 1; i >= 0; i--) {
+      const slotTime = new Date(now.getTime() - i * intervalMs)
+      labels.push(formatLabel(slotTime))
+      const slotIndex = slots - 1 - i
+      const slotActivity = auditActivity.value[slotIndex] || {}
+      
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
+  } else if (activityTimeRange.value === 'minute') {
+    slots = 6
+    intervalMs = 10 * 1000 // 10 seconds
+    // Align to start of current minute
+    const minuteStart = new Date(now)
+    minuteStart.setSeconds(0, 0)
+    formatLabel = (d, i) => `${i * 10}с`
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(minuteStart.getTime() + i * intervalMs)
+      labels.push(formatLabel(slotTime, i))
+
+      const slotActivity = auditActivity.value[i] || {}
+
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
   } else if (activityTimeRange.value === 'hour') {
     slots = 12
     intervalMs = 5 * 60000 // 5 minutes
     formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+    
+    for (let i = slots - 1; i >= 0; i--) {
+      const slotTime = new Date(now.getTime() - i * intervalMs)
+      labels.push(formatLabel(slotTime))
+
+      const slotIndex = slots - 1 - i
+      const slotActivity = auditActivity.value[slotIndex] || {}
+
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
   } else { // day
     slots = 24
     intervalMs = 60 * 60000 // 1 hour
     formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:00`
-  }
+    
+    const startOfDay = new Date(now)
+    startOfDay.setHours(0, 0, 0, 0)
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(startOfDay.getTime() + i * intervalMs)
+      labels.push(formatLabel(slotTime))
 
-  for (let i = slots - 1; i >= 0; i--) {
-    const slotTime = new Date(now.getTime() - i * intervalMs)
-    labels.push(formatLabel(slotTime))
+      const slotActivity = auditActivity.value[i] || {}
 
-    const slotIndex = slots - 1 - i
-    const slotActivity = auditActivity.value[slotIndex] || {}
-
-    duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
-    timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
-    errorData.push(
-      (slotActivity['Некорректное входящее событие'] || 0) +
-      (slotActivity['Не найден маршрут для входящего события'] || 0) +
-      (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
-      (slotActivity['Получен ответ без ожидающей операции'] || 0)
-    )
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
   }
 
   return {
@@ -402,6 +551,160 @@ const activityChartData = computed(() => {
   }
 })
 
+// Sent/Received message timeline
+const messageChartData = computed(() => {
+  const labels = []
+  const sentData = []
+  const receivedData = []
+
+  const now = new Date()
+
+  let slots, intervalMs, formatLabel
+  if (activityTimeRange.value === 'all') {
+    // Show all messages grouped by time buckets with dates
+    const allMessages = [...sentMessages.value, ...receivedMessages.value].filter(m => m.timestamp)
+    if (allMessages.length === 0) {
+      return { labels: [], datasets: [] }
+    }
+    
+    const timestamps = allMessages.map(m => new Date(m.timestamp).getTime())
+    const minTime = Math.min(...timestamps)
+    const maxTime = Math.max(...timestamps)
+    const timeRangeInfo = getAdaptiveTimeRangeForData(minTime, maxTime, 12)
+    
+    slots = Math.max(12, Math.min(48, Math.ceil((maxTime - minTime) / timeRangeInfo.interval)))
+    intervalMs = timeRangeInfo.interval
+    formatLabel = timeRangeInfo.format
+    
+    for (let i = 0; i < slots; i++) {
+      const slotStart = minTime + i * intervalMs
+      const slotEnd = minTime + (i + 1) * intervalMs
+      const slotDate = new Date(slotStart)
+      labels.push(formatLabel(slotDate))
+      
+      const sentInSlot = sentMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp).getTime()
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      sentData.push(sentInSlot)
+      
+      const receivedInSlot = receivedMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp).getTime()
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      receivedData.push(receivedInSlot)
+    }
+  } else if (activityTimeRange.value === 'minute') {
+    slots = 6
+    intervalMs = 10 * 1000 // 10 seconds
+    // Align to start of current minute
+    const minuteStart = new Date(now)
+    minuteStart.setSeconds(0, 0)
+    formatLabel = (d, i) => `${i * 10}с`
+    
+    for (let i = 0; i < slots; i++) {
+      const slotStart = new Date(minuteStart.getTime() + i * intervalMs)
+      const slotEnd = new Date(minuteStart.getTime() + (i + 1) * intervalMs)
+      labels.push(formatLabel(slotEnd, i))
+
+      // Count sent messages in this time slot
+      const sentInSlot = sentMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp)
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      sentData.push(sentInSlot)
+
+      // Count received messages in this time slot
+      const receivedInSlot = receivedMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp)
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      receivedData.push(receivedInSlot)
+    }
+  } else if (activityTimeRange.value === 'hour') {
+    slots = 12
+    intervalMs = 5 * 60000 // 5 minutes
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+    
+    for (let i = 0; i < slots; i++) {
+      const slotStart = new Date(now.getTime() - (slots - i) * intervalMs)
+      const slotEnd = new Date(now.getTime() - (slots - i - 1) * intervalMs)
+      labels.push(formatLabel(slotEnd))
+
+      // Count sent messages in this time slot
+      const sentInSlot = sentMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp)
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      sentData.push(sentInSlot)
+
+      // Count received messages in this time slot
+      const receivedInSlot = receivedMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp)
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      receivedData.push(receivedInSlot)
+    }
+  } else { // day
+    slots = 24
+    intervalMs = 60 * 60000 // 1 hour
+    formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:00`
+    
+    const startOfDay = new Date(now)
+    startOfDay.setHours(0, 0, 0, 0)
+    
+    for (let i = 0; i < slots; i++) {
+      const slotStart = new Date(startOfDay.getTime() + i * intervalMs)
+      const slotEnd = new Date(startOfDay.getTime() + (i + 1) * intervalMs)
+      labels.push(formatLabel(slotStart))
+
+      // Count sent messages in this time slot
+      const sentInSlot = sentMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp)
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      sentData.push(sentInSlot)
+
+      // Count received messages in this time slot
+      const receivedInSlot = receivedMessages.value.filter(m => {
+        if (!m.timestamp) return false
+        const msgTime = new Date(m.timestamp)
+        return msgTime >= slotStart && msgTime < slotEnd
+      }).length
+      receivedData.push(receivedInSlot)
+    }
+  }
+
+  return {
+    labels,
+    datasets: [
+      {
+        label: 'Отправлено',
+        data: sentData,
+        borderColor: '#82b1ff',
+        backgroundColor: 'rgba(130,177,255,0.1)',
+        tension: 0.4,
+        fill: true,
+      },
+      {
+        label: 'Получено',
+        data: receivedData,
+        borderColor: '#6dd58c',
+        backgroundColor: 'rgba(109,213,140,0.1)',
+        tension: 0.4,
+        fill: true,
+      },
+    ],
+  }
+})
+
 // Duplicates chart data (separate)
 const duplicatesChartData = computed(() => {
   const labels = []
@@ -410,27 +713,67 @@ const duplicatesChartData = computed(() => {
   const now = new Date()
 
   let slots, intervalMs, formatLabel
-  if (activityTimeRange.value === 'minute') {
-    slots = 12
-    intervalMs = 5 * 1000
-    formatLabel = (d) => `${d.getSeconds().toString().padStart(2, '0')}с`
+  if (activityTimeRange.value === 'all') {
+    const totalSlots = auditActivity.value.length
+    if (totalSlots === 0) {
+      return { labels: [], datasets: [] }
+    }
+    
+    const oldestSlotTime = new Date(now.getTime() - (totalSlots - 1) * 5 * 60000)
+    const timeRange = getAdaptiveTimeRange(oldestSlotTime, now)
+    
+    slots = Math.min(totalSlots, 48)
+    intervalMs = timeRange.interval
+    formatLabel = timeRange.format
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(now.getTime() - (slots - 1 - i) * intervalMs)
+      labels.push(formatLabel(slotTime))
+      const slotIndex = i
+      const slotActivity = auditActivity.value[slotIndex] || {}
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+    }
+  } else if (activityTimeRange.value === 'minute') {
+    slots = 6
+    intervalMs = 10 * 1000
+    // Align to start of current minute
+    const minuteStart = new Date(now)
+    minuteStart.setSeconds(0, 0)
+    formatLabel = (d, i) => `${i * 10}с`
+    
+    for (let i = 0; i < slots; i++) {
+      labels.push(formatLabel(now, i))
+      const slotActivity = auditActivity.value[i] || {}
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+    }
   } else if (activityTimeRange.value === 'hour') {
     slots = 12
     intervalMs = 5 * 60000
     formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(now.getTime() - (slots - 1 - i) * intervalMs)
+      labels.push(formatLabel(slotTime))
+
+      const slotIndex = i
+      const slotActivity = auditActivity.value[slotIndex] || {}
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+    }
   } else {
     slots = 24
     intervalMs = 60 * 60000
     formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:00`
-  }
+    
+    const startOfDay = new Date(now)
+    startOfDay.setHours(0, 0, 0, 0)
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(startOfDay.getTime() + i * intervalMs)
+      labels.push(formatLabel(slotTime))
 
-  for (let i = slots - 1; i >= 0; i--) {
-    const slotTime = new Date(now.getTime() - i * intervalMs)
-    labels.push(formatLabel(slotTime))
-
-    const slotIndex = slots - 1 - i
-    const slotActivity = auditActivity.value[slotIndex] || {}
-    duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+      const slotActivity = auditActivity.value[i] || {}
+      duplicateData.push(slotActivity['Событие не прошло проверку на идемпотентность'] || 0)
+    }
   }
 
   return {
@@ -457,34 +800,96 @@ const errorsChartData = computed(() => {
   const now = new Date()
 
   let slots, intervalMs, formatLabel
-  if (activityTimeRange.value === 'minute') {
-    slots = 12
-    intervalMs = 5 * 1000
-    formatLabel = (d) => `${d.getSeconds().toString().padStart(2, '0')}с`
+  if (activityTimeRange.value === 'all') {
+    const totalSlots = auditActivity.value.length
+    if (totalSlots === 0) {
+      return { labels: [], datasets: [] }
+    }
+    
+    const now = new Date()
+    const oldestSlotTime = new Date(now.getTime() - (totalSlots - 1) * 5 * 60000)
+    const timeRange = getAdaptiveTimeRangeForData(oldestSlotTime.getTime(), now.getTime(), totalSlots)
+    
+    slots = Math.min(totalSlots, 48)
+    intervalMs = timeRange.interval
+    formatLabel = timeRange.format
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(now.getTime() - (slots - 1 - i) * intervalMs)
+      labels.push(formatLabel(slotTime))
+      const slotIndex = i
+      const slotActivity = auditActivity.value[slotIndex] || {}
+
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
+  } else if (activityTimeRange.value === 'minute') {
+    slots = 6
+    intervalMs = 10 * 1000
+    // Align to start of current minute
+    const minuteStart = new Date(now)
+    minuteStart.setSeconds(0, 0)
+    formatLabel = (d, i) => `${i * 10}с`
+    
+    for (let i = 0; i < slots; i++) {
+      labels.push(formatLabel(now, i))
+      const slotActivity = auditActivity.value[i] || {}
+
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
   } else if (activityTimeRange.value === 'hour') {
     slots = 12
     intervalMs = 5 * 60000
     formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(now.getTime() - (slots - 1 - i) * intervalMs)
+      labels.push(formatLabel(slotTime))
+
+      const slotIndex = i
+      const slotActivity = auditActivity.value[slotIndex] || {}
+
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
   } else {
     slots = 24
     intervalMs = 60 * 60000
     formatLabel = (d) => `${d.getHours().toString().padStart(2, '0')}:00`
-  }
+    
+    const startOfDay = new Date(now)
+    startOfDay.setHours(0, 0, 0, 0)
+    
+    for (let i = 0; i < slots; i++) {
+      const slotTime = new Date(startOfDay.getTime() + i * intervalMs)
+      labels.push(formatLabel(slotTime))
 
-  for (let i = slots - 1; i >= 0; i--) {
-    const slotTime = new Date(now.getTime() - i * intervalMs)
-    labels.push(formatLabel(slotTime))
+      const slotActivity = auditActivity.value[i] || {}
 
-    const slotIndex = slots - 1 - i
-    const slotActivity = auditActivity.value[slotIndex] || {}
-
-    timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
-    errorData.push(
-      (slotActivity['Некорректное входящее событие'] || 0) +
-      (slotActivity['Не найден маршрут для входящего события'] || 0) +
-      (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
-      (slotActivity['Получен ответ без ожидающей операции'] || 0)
-    )
+      timeoutData.push(slotActivity['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+      errorData.push(
+        (slotActivity['Некорректное входящее событие'] || 0) +
+        (slotActivity['Не найден маршрут для входящего события'] || 0) +
+        (slotActivity['Некорректный ответ от системы-получателя'] || 0) +
+        (slotActivity['Получен ответ без ожидающей операции'] || 0)
+      )
+    }
   }
 
   return {
@@ -531,6 +936,98 @@ const duplicateCountFromAudit = computed(() => {
   return auditActivity.value.reduce((sum, slot) => {
     return sum + (slot['Событие не прошло проверку на идемпотентность'] || 0)
   }, 0)
+})
+
+// Filter sent/received messages by selected time range for stat cards
+const sentCountInRange = computed(() => {
+  return sentCount.value
+})
+
+const receivedCountInRange = computed(() => {
+  return receivedCount.value
+})
+
+// Success Rate calculation
+const totalMessages = computed(() => sentCountInRange.value)
+const successfulMessages = computed(() => {
+  return sentCountInRange.value - (totalErrors.value + timeoutCount.value)
+})
+const successRateNumeric = computed(() => {
+  if (totalMessages.value === 0) return 0
+  return (successfulMessages.value / totalMessages.value) * 100
+})
+const successRate = computed(() => {
+  if (totalMessages.value === 0) return '—'
+  return `${successRateNumeric.value.toFixed(1)}%`
+})
+
+// Throughput calculation (messages per second)
+const throughput = computed(() => {
+  const timeWindowSeconds = {
+    'minute': 60,
+    'hour': 3600,
+    'day': 86400,
+    'all': null
+  }
+  const seconds = timeWindowSeconds[activityTimeRange.value]
+  
+  if (!seconds || sentCountInRange.value === 0) {
+    return sentCountInRange.value
+  }
+  
+  const messagesPerSecond = sentCountInRange.value / seconds
+  if (messagesPerSecond < 1) {
+    return messagesPerSecond.toFixed(2)
+  }
+  return Math.round(messagesPerSecond)
+})
+
+const throughputLabel = computed(() => {
+  const timeWindowSeconds = {
+    'minute': 60,
+    'hour': 3600,
+    'day': 86400,
+    'all': null
+  }
+  const seconds = timeWindowSeconds[activityTimeRange.value]
+  
+  if (!seconds) {
+    return 'Всего сообщений'
+  }
+  return 'сообщений/сек'
+})
+
+// System Health indicator
+const systemHealth = computed(() => {
+  const errorRate = totalMessages.value > 0 
+    ? ((totalErrors.value + timeoutCount.value) / totalMessages.value) * 100 
+    : 0
+  
+  if (errorRate === 0 && totalMessages.value > 0) {
+    return {
+      status: 'healthy',
+      label: 'Отлично',
+      message: 'Все системы работают нормально'
+    }
+  } else if (errorRate < 5) {
+    return {
+      status: 'healthy',
+      label: 'Здорова',
+      message: `Уровень ошибок: ${errorRate.toFixed(1)}% (в пределах нормы)`
+    }
+  } else if (errorRate < 15) {
+    return {
+      status: 'degraded',
+      label: 'Деградация',
+      message: `Уровень ошибок: ${errorRate.toFixed(1)}% (требует внимания)`
+    }
+  } else {
+    return {
+      status: 'critical',
+      label: 'Критично',
+      message: `Уровень ошибок: ${errorRate.toFixed(1)}% (требуется вмешательство)`
+    }
+  }
 })
 
 const activityChartOptions = {
@@ -595,17 +1092,89 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, 8) + '…' + s.slice(-8) : s
 }
 
+function getAdaptiveTimeRange(startTime, endTime) {
+  const diffMs = endTime.getTime() - startTime.getTime()
+  const diffHours = diffMs / (1000 * 60 * 60)
+  const diffDays = diffHours / 24
+  
+  if (diffHours <= 24) {
+    return { interval: 60 * 60 * 1000, format: (d) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) }
+  } else if (diffDays <= 7) {
+    return { interval: 24 * 60 * 60 * 1000, format: (d) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) }
+  } else if (diffDays <= 30) {
+    return { interval: 7 * 24 * 60 * 60 * 1000, format: (d) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) }
+  } else {
+    return { interval: 30 * 24 * 60 * 60 * 1000, format: (d) => d.toLocaleDateString('ru-RU', { month: 'short', year: '2-digit' }) }
+  }
+}
+
+function getAdaptiveTimeRangeForData(minTime, maxTime, targetSlots = 12) {
+  const diffMs = maxTime - minTime
+  const targetInterval = diffMs / targetSlots
+  
+  // Round to nice intervals (1 min, 5 min, 15 min, 1 hour, 6 hours, 1 day, etc.)
+  const intervals = [
+    60 * 1000,              // 1 minute
+    5 * 60 * 1000,          // 5 minutes
+    15 * 60 * 1000,         // 15 minutes
+    60 * 60 * 1000,         // 1 hour
+    6 * 60 * 60 * 1000,     // 6 hours
+    24 * 60 * 60 * 1000,    // 1 day
+    7 * 24 * 60 * 60 * 1000 // 1 week
+  ]
+  
+  let interval = intervals[intervals.length - 1]
+  for (const i of intervals) {
+    if (i >= targetInterval) {
+      interval = i
+      break
+    }
+  }
+  
+  // Determine format based on interval
+  let format
+  if (interval < 60 * 60 * 1000) {
+    format = (d) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  } else if (interval < 24 * 60 * 60 * 1000) {
+    format = (d) => d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  } else if (interval < 7 * 24 * 60 * 60 * 1000) {
+    format = (d) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  } else {
+    format = (d) => d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+  }
+  
+  return { interval, format }
+}
+
 async function loadAll() {
   if (initialLoading.value) {
     loading.value = true
   }
   try {
+    const now = new Date()
+    let since
+    if (activityTimeRange.value === 'minute') {
+      since = new Date(now.getTime() - 60 * 1000).toISOString()
+    } else if (activityTimeRange.value === 'hour') {
+      since = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+    } else if (activityTimeRange.value === 'day') {
+      const startOfDay = new Date(now)
+      startOfDay.setHours(0, 0, 0, 0)
+      since = startOfDay.toISOString()
+    } else { // all - no time filter
+      since = undefined
+    }
+    
     await Promise.allSettled([
       loadErrors(),
-      loadSenderStats(),
-      loadReceiverStats(),
+      loadSenderStats(since),
+      loadReceiverStats(since),
       loadAuditActivity(),
       loadIntegrations(),
+      loadSentMessages(),
+      loadReceivedMessages(),
+      loadDuplicates(),
+      loadTimeouts(),
     ])
     lastRefresh.value = new Date().toLocaleTimeString('ru-RU')
   } finally {
@@ -623,18 +1192,18 @@ async function loadErrors() {
   } catch {}
 }
 
-async function loadSenderStats() {
+async function loadSenderStats(since) {
   try {
-    const res = await senderApi.getStats()
+    const res = await senderApi.getStats(since)
     const stats = res.data?.data
     sentCount.value = stats?.totalSent ?? 0
     repliesCount.value = stats?.totalReplies ?? 0
   } catch {}
 }
 
-async function loadReceiverStats() {
+async function loadReceiverStats(since) {
   try {
-    const res = await receiverApi.getStats()
+    const res = await receiverApi.getStats(since)
     const stats = res.data?.data
     receivedCount.value = stats?.totalReceived ?? 0
   } catch {}
@@ -657,14 +1226,26 @@ async function loadTimeouts() {
 async function loadIntegrations() {
   try {
     const res = await coreApi.getIntegrations()
-    console.log('Integrations API response:', res)
-    console.log('res.data:', res.data)
-    console.log('res.data.data:', res.data?.data)
     integrations.value = res.data?.data ?? []
-    console.log('integrations.value set to:', integrations.value)
   } catch (e) {
     console.error('Failed to load integrations:', e)
   }
+}
+
+async function loadSentMessages(since) {
+  try {
+    const res = await senderApi.getSentMessages(since)
+    const data = res.data?.data
+    sentMessages.value = Array.isArray(data) ? data : (data ? [data] : [])
+  } catch {}
+}
+
+async function loadReceivedMessages(since) {
+  try {
+    const res = await receiverApi.getReceivedEvents(since)
+    const data = res.data?.data
+    receivedMessages.value = Array.isArray(data) ? data : (data ? [data] : [])
+  } catch {}
 }
 
 function toggleIntegration(name) {
@@ -686,23 +1267,32 @@ async function loadAuditActivity() {
   const now = new Date()
   const activity = []
 
-  let slots, intervalMs
-  if (activityTimeRange.value === 'minute') {
-    slots = 12
-    intervalMs = 5 * 1000 // 5 seconds
+  let slots, intervalMs, startTime
+  if (activityTimeRange.value === 'all') {
+    // For 'all', load data from epoch start with multiple slots for better visualization
+    startTime = new Date(0) // Unix epoch
+    slots = 48 // 48 slots for better chart resolution
+    intervalMs = (now.getTime() - startTime.getTime()) / slots
+  } else if (activityTimeRange.value === 'minute') {
+    slots = 6
+    intervalMs = 10 * 1000 // 10 seconds
+    startTime = new Date(now.getTime() - slots * intervalMs)
   } else if (activityTimeRange.value === 'hour') {
     slots = 12
     intervalMs = 5 * 60000 // 5 minutes
+    startTime = new Date(now.getTime() - slots * intervalMs)
   } else { // day
     slots = 24
     intervalMs = 60 * 60000 // 1 hour
+    startTime = new Date(now)
+    startTime.setHours(0, 0, 0, 0)
   }
 
-  for (let i = slots - 1; i >= 0; i--) {
-    const slotTime = new Date(now.getTime() - i * intervalMs)
-    const since = slotTime.toISOString()
+  for (let i = 0; i < slots; i++) {
+    const slotTime = new Date(startTime.getTime() + i * intervalMs)
+    const slotSince = slotTime.toISOString()
     try {
-      const res = await coreApi.getAuditActivity(since)
+      const res = await coreApi.getAuditActivity(slotSince)
       activity.push(res.data?.data ?? {})
     } catch {
       activity.push({})
@@ -714,11 +1304,30 @@ async function loadAuditActivity() {
 
 onMounted(() => {
   loadAll()
-  const interval = setInterval(loadAll, 3000)
+  const interval = setInterval(loadAll, 10000)
   onUnmounted(() => clearInterval(interval))
 })
 
 watch(activityTimeRange, () => {
   loadAuditActivity()
+  
+  const now = new Date()
+  let since
+  if (activityTimeRange.value === 'minute') {
+    since = new Date(now.getTime() - 60 * 1000).toISOString()
+  } else if (activityTimeRange.value === 'hour') {
+    since = new Date(now.getTime() - 60 * 60 * 1000).toISOString()
+  } else if (activityTimeRange.value === 'day') {
+    const startOfDay = new Date(now)
+    startOfDay.setHours(0, 0, 0, 0)
+    since = startOfDay.toISOString()
+  } else { // all - no time filter
+    since = undefined
+  }
+  
+  loadSenderStats(since)
+  loadReceiverStats(since)
+  loadSentMessages()
+  loadReceivedMessages()
 })
 </script>

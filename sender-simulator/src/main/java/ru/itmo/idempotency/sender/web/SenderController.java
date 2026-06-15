@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.itmo.idempotency.common.web.ApiResponse;
 import ru.itmo.idempotency.sender.service.SenderDispatchService;
@@ -33,8 +34,8 @@ public class SenderController {
     }
 
     @GetMapping("/sent")
-    public ApiResponse<?> sentMessages() {
-        return ApiResponse.success(senderStateService.sentMessages());
+    public ApiResponse<?> sentMessages(@RequestParam(required = false) String since) {
+        return ApiResponse.success(senderStateService.sentMessages(since));
     }
 
     @GetMapping("/replies")
@@ -43,8 +44,8 @@ public class SenderController {
     }
 
     @GetMapping("/stats")
-    public ApiResponse<?> stats() {
-        return ApiResponse.success(senderStateService.stats());
+    public ApiResponse<?> stats(@RequestParam(required = false) String since) {
+        return ApiResponse.success(senderStateService.stats(since));
     }
 
     @DeleteMapping("/state")

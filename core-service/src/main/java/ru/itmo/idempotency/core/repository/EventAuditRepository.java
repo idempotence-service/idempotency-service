@@ -19,4 +19,7 @@ public interface EventAuditRepository extends JpaRepository<EventAuditEntity, Lo
 
     @Query("SELECT e.reason, COUNT(e) FROM EventAuditEntity e WHERE e.createDate >= :since GROUP BY e.reason")
     List<Object[]> countByReasonSince(@Param("since") OffsetDateTime since);
+
+    @Query("SELECT e.reason, COUNT(e) FROM EventAuditEntity e GROUP BY e.reason")
+    List<Object[]> countByReason();
 }

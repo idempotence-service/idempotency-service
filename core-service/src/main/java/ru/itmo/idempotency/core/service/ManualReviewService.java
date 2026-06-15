@@ -138,7 +138,9 @@ public class ManualReviewService {
     public Map<String, Long> getAuditActivitySince(OffsetDateTime since) {
         Map<String, Long> aggregated = new HashMap<>();
         storageShardExecutor.collectFromAllReadOnly(
-                shardId -> eventAuditRepository.countByReasonSince(since))
+                shardId -> since == null 
+                    ? eventAuditRepository.countByReason() 
+                    : eventAuditRepository.countByReasonSince(since))
                 .forEach(row -> {
                     String reason = (String) row[0];
                     Long count = (Long) row[1];

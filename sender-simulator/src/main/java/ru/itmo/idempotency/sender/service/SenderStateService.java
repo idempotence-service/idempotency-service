@@ -7,6 +7,7 @@ import ru.itmo.idempotency.sender.config.SenderProperties;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
@@ -47,19 +48,66 @@ public class SenderStateService {
         return sentMessages.snapshot();
     }
 
+    public List<ObservedMessage> sentMessages(String since) {
+        if (since == null || since.isEmpty()) {
+            return sentMessages.snapshot();
+        }
+        try {
+            OffsetDateTime sinceTime = OffsetDateTime.parse(since);
+            return sentMessages.snapshot().stream()
+                    .filter(msg -> msg.timestamp() != null && !msg.timestamp().isBefore(sinceTime))
+                    .toList();
+        } catch (DateTimeParseException e) {
+            return sentMessages.snapshot();
+        }
+    }
+
     public List<ObservedMessage> receivedReplies() {
         return receivedReplies.snapshot();
     }
 
     public StateStats stats() {
-        return new StateStats(
-                sentTotal.sum(),
-                replyTotal.sum(),
-                sentMessages.size(),
-                receivedReplies.size(),
-                senderProperties.getState().isStoreHistory(),
-                senderProperties.getState().getHistoryLimit()
-        );
+        return stats(null);
+    }
+
+    public StateStats stats(String since) {
+        if (since == null || since.isEmpty()) {
+            return new StateStats(
+                    sentTotal.sum(),
+                    replyTotal.sum(),
+                    sentMessages.size(),
+                    receivedReplies.size(),
+                    senderProperties.getState().isStoreHistory(),
+                    senderProperties.getState().getHistoryLimit()
+            );
+        }
+        
+        try {
+            OffsetDateTime sinceTime = OffsetDateTime.parse(since);
+            long sentCount = sentMessages.snapshot().stream()
+                    .filter(msg -> msg.timestamp() != null && !msg.timestamp().isBefore(sinceTime))
+                    .count();
+            long replyCount = receivedReplies.snapshot().stream()
+                    .filter(msg -> msg.timestamp() != null && !msg.timestamp().isBefore(sinceTime))
+                    .count();
+            return new StateStats(
+                    sentCount,
+                    replyCount,
+                    sentMessages.size(),
+                    receivedReplies.size(),
+                    senderProperties.getState().isStoreHistory(),
+                    senderProperties.getState().getHistoryLimit()
+            );
+        } catch (DateTimeParseException e) {
+            return new StateStats(
+                    sentTotal.sum(),
+                    replyTotal.sum(),
+                    sentMessages.size(),
+                    receivedReplies.size(),
+                    senderProperties.getState().isStoreHistory(),
+                    senderProperties.getState().getHistoryLimit()
+            );
+        }
     }
 
     public void reset() {

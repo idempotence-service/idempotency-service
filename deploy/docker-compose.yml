@@ -209,7 +209,7 @@ services:
       - ../receiver-simulator/src/main/resources/application.yml:/app/application.yml
 
   metrics-aggregator:
-    build: ../metrics-aggregator
+    image: ${METRICS_AGGREGATOR_IMAGE}
     restart: on-failure
     environment:
       SENDER_INSTANCES: sender-simulator:8081

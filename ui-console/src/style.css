@@ -92,6 +92,15 @@
     background: var(--md-surface-2);
     color: var(--md-on-surface);
   }
+  .btn-tonal:active:not(:disabled) {
+    background: var(--md-surface-1);
+    color: var(--md-on-surface);
+    transform: scale(0.98);
+  }
+  .btn-tonal:focus-visible:not(:disabled) {
+    outline: 2px solid var(--md-primary);
+    outline-offset: 2px;
+  }
   .btn-text {
     @apply btn;
     background: transparent;
@@ -123,6 +132,17 @@
     border-color: var(--md-primary);
     box-shadow: 0 0 0 2px rgba(208,188,255,0.15);
   }
+  
+  /* Select with proper padding for dropdown arrow */
+  select.input {
+    padding-right: 40px;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23938f99' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    cursor: pointer;
+  }
+  
   .select { @apply input cursor-pointer; }
   .label {
     display: block;

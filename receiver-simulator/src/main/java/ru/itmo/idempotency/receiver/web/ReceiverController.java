@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import ru.itmo.idempotency.common.web.ApiResponse;
 import ru.itmo.idempotency.receiver.service.ReceiverReplyService;
@@ -21,13 +22,13 @@ public class ReceiverController {
     private final ReceiverReplyService receiverReplyService;
 
     @GetMapping("/events")
-    public ApiResponse<?> events() {
-        return ApiResponse.success(receiverStateService.messages());
+    public ApiResponse<?> events(@RequestParam(required = false) String since) {
+        return ApiResponse.success(receiverStateService.messages(since));
     }
 
     @GetMapping("/stats")
-    public ApiResponse<?> stats() {
-        return ApiResponse.success(receiverStateService.stats());
+    public ApiResponse<?> stats(@RequestParam(required = false) String since) {
+        return ApiResponse.success(receiverStateService.stats(since));
     }
 
     @PostMapping("/mode")

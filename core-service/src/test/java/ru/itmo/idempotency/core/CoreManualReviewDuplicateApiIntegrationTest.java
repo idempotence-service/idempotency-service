@@ -78,7 +78,7 @@ class CoreManualReviewDuplicateApiIntegrationTest {
                         .header("Authorization", "Bearer operator-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data[0].globalKey").value("dup-key-1"));
+                .andExpect(jsonPath("$.data.content[0].globalKey").value("dup-key-1"));
 
         mockMvc.perform(get("/get-duplicate-count")
                         .header("Authorization", "Bearer operator-token"))

@@ -75,7 +75,7 @@
       >
 
       <!-- Skeleton overlay (shown only during initial load, doesn't remove table from DOM) -->
-      <div v-if="isInitialLoading" class="absolute inset-0 z-10" style="background:var(--md-surface); min-height:300px">
+      <div v-if="isInitialLoadingState" class="absolute inset-0 z-10" style="background:var(--md-surface); min-height:300px">
         <div class="flex items-center gap-2 px-4 py-3" style="border-bottom:1px solid var(--md-outline-v)">
           <div class="h-4 w-16 rounded animate-pulse" style="background:var(--md-surface-3)"></div>
           <div class="h-4 w-24 rounded animate-pulse" style="background:var(--md-surface-3)"></div>
@@ -94,7 +94,7 @@
       </div>
 
       <!-- Empty state -->
-      <div v-if="!isInitialLoading && !displayedMessages.length && hasLoadedOnce"
+      <div v-if="!isInitialLoadingState && !displayedMessages.length && hasLoadedOnce"
         class="flex flex-col items-center justify-center py-20 gap-3"
         style="color:var(--md-on-surface-v); min-height:300px">
         <svg class="w-12 h-12 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -115,7 +115,7 @@
         </colgroup>
         <thead>
           <tr style="height:48px">
-            <th @click="toggleSort('type')" class="cursor-pointer select-none py-3">
+            <th @click="toggleSortLocal('type')" class="cursor-pointer select-none py-3">
               <div class="flex items-center gap-2 h-full">
                 Тип
                 <svg v-if="sortBy==='type'" class="w-3.5 h-3.5" style="color:var(--md-primary)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -126,7 +126,7 @@
                 </svg>
               </div>
             </th>
-            <th @click="toggleSort('key')" class="cursor-pointer select-none py-3">
+            <th @click="toggleSortLocal('key')" class="cursor-pointer select-none py-3">
               <div class="flex items-center gap-2 h-full">
                 Key / UID
                 <svg v-if="sortBy==='key'" class="w-3.5 h-3.5" style="color:var(--md-primary)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -137,7 +137,7 @@
                 </svg>
               </div>
             </th>
-            <th @click="toggleSort('integration')" class="cursor-pointer select-none py-3">
+            <th @click="toggleSortLocal('integration')" class="cursor-pointer select-none py-3">
               <div class="flex items-center gap-2 h-full">
                 Интеграция
                 <svg v-if="sortBy==='integration'" class="w-3.5 h-3.5" style="color:var(--md-primary)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,7 +148,7 @@
                 </svg>
               </div>
             </th>
-            <th @click="toggleSort('timestamp')" class="cursor-pointer select-none py-3">
+            <th @click="toggleSortLocal('timestamp')" class="cursor-pointer select-none py-3">
               <div class="flex items-center gap-2 h-full">
                 Время
                 <svg v-if="sortBy==='timestamp'" class="w-3.5 h-3.5" style="color:var(--md-primary)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,7 +186,7 @@
             <td class="py-3">
               <div class="flex items-center gap-2 h-full">
                 <span class="mono text-xs" style="color:var(--md-on-surface)">{{ truncate(msg.key, 22) }}</span>
-                <button v-if="msg.key" @click.stop="copy(msg.key)"
+                <button v-if="msg.key" @click.stop="copyLocal(msg.key)"
                   class="flex items-center justify-center w-8 h-8 rounded-lg opacity-0 group-hover:opacity-100 shrink-0 transition-all"
                   style="background:var(--md-surface-3); color:var(--md-on-surface-v)"
                   title="Копировать">
@@ -301,6 +301,7 @@ import { senderApi } from '../api/sender.js'
 import { receiverApi } from '../api/receiver.js'
 import { useToastStore } from '../stores/toast.js'
 import StatusBadge from './StatusBadge.vue'
+import { toggleSort, typeStyle, truncate, formatTimestamp, copy, rebuildMessages, filterAndSortMessages, formatRawFields, calculateErrorCountFromAudit, buildFilters, isInitialLoading, isRefreshing, shouldLoadMore, parseApiResponse, calculateAuditActivitySince } from '../utils/messagesHelpers.js'
 
 const toast = useToastStore()
 
@@ -333,24 +334,16 @@ const allMessages = ref([])
 const scrollContainer = ref(null)
 
 // Loading states - no flash on refresh
-const isInitialLoading = computed(() => loading.value && !allMessages.value.length)
-const isRefreshing = computed(() => loading.value && allMessages.value.length > 0)
+const isInitialLoadingState = computed(() => isInitialLoading(loading.value, allMessages.value.length))
+const isRefreshingState = computed(() => isRefreshing(loading.value, allMessages.value.length))
 
-function toggleSort(col) {
-  if (sortBy.value === col) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
-  else { sortBy.value = col; sortDir.value = 'asc' }
+function toggleSortLocal(col) {
+  toggleSort(sortBy, sortDir, col)
 }
 
 function handleScroll() {
-  if (!scrollContainer.value || loadingMore.value) return
-
-  const container = scrollContainer.value
-  const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight
-
-  // Load more when user is within 100px of bottom
-  if (scrollBottom < 100 && displayLimit.value < allMessages.value.length) {
+  if (shouldLoadMore(scrollContainer.value, loadingMore.value, displayLimit.value, allMessages.value.length)) {
     loadingMore.value = true
-    // Simulate async loading with small delay for smooth UX
     setTimeout(() => {
       displayLimit.value = Math.min(displayLimit.value + 100, allMessages.value.length)
       loadingMore.value = false
@@ -360,177 +353,32 @@ function handleScroll() {
 
 async function loadAuditActivity() {
   try {
-    const now = new Date()
-    const oneHourAgo = new Date(now.getTime() - 60 * 60000).toISOString()
-    const res = await coreApi.getAuditActivity(oneHourAgo)
+    const since = calculateAuditActivitySince()
+    const res = await coreApi.getAuditActivity(since)
     auditActivity.value = res.data?.data || []
   } catch {
     auditActivity.value = []
   }
 }
 
-function rebuildMessages() {
-  const list = []
-
-  // Keys that were sent (to detect duplicates)
-  const sentKeySet = new Set(
-    sentMessages.value.map(m => m.uid || m.id || m.globalKey).filter(Boolean)
-  )
-
-  sentMessages.value.forEach(m => {
-    const baseKey = m.uid || m.id || JSON.stringify(m)
-    list.push({
-      _id:         `sent-${baseKey}-${Math.random().toString(36).substr(2, 9)}`,
-      _raw:         m,
-      type:        'sent',
-      key:          m.uid || m.id || '',
-      integration:  m.integration || '',
-      status:       m.status || 'SENT',
-      description:  m.description || '',
-      timestamp:    m.timestamp || null,
-    })
-  })
-
-  receivedEvents.value.forEach(m => {
-    const baseKey = m.globalKey || m.uid || JSON.stringify(m)
-    list.push({
-      _id:         `recv-${baseKey}-${Math.random().toString(36).substr(2, 9)}`,
-      _raw:         m,
-      type:        'received',
-      key:          m.globalKey || m.uid || '',
-      integration:  m.integration || '',
-      status:       m.status || m.result || 'RECEIVED',
-      description:  m.resultDescription || '',
-      timestamp:    m.timestamp || null,
-    })
-  })
-
-  errorEvents.value.forEach(m => {
-    const key = m.globalKey || ''
-    list.push({
-      _id:         `err-${key}-${Math.random().toString(36).substr(2, 9)}`,
-      _raw:         m,
-      type:         'error',
-      key,
-      integration:  m.integration || '',
-      status:       m.status || 'ERROR',
-      description:  m.statusDescription || '',
-      timestamp:    m.createDate || m.timestamp || null,
-    })
-  })
-
-  // Add duplicate events from API
-  duplicateEvents.value.forEach(m => {
-    const key = m.globalKey || ''
-    list.push({
-      _id:         `dup-${key}-${Math.random().toString(36).substr(2, 9)}`,
-      _raw:         m,
-      type:         'duplicate',
-      key,
-      integration:  m.integration || '',
-      status:       'DUPLICATE',
-      description:  m.reason || 'Duplicate request blocked by idempotency service',
-      timestamp:    m.createDate || m.timestamp || null,
-    })
-  })
-
-  allMessages.value = list
+function rebuildMessagesLocal() {
+  allMessages.value = rebuildMessages(sentMessages.value, receivedEvents.value, errorEvents.value, duplicateEvents.value)
 }
 
 const rawFields = computed(() => {
-  if (!selectedMsg.value) return []
-  const raw = selectedMsg.value._raw || selectedMsg.value
-  return Object.entries(raw)
-    .filter(([k]) => !k.startsWith('_'))
-    .map(([k, v]) => [k, v === null || v === undefined ? '—' : (typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v))])
+  return formatRawFields(selectedMsg.value)
 })
 
 const filters = computed(() => {
-  // Calculate totals from auditActivity for errors (time-limited)
-  const auditArray = Array.isArray(auditActivity.value) ? auditActivity.value : []
-  const errorCountFromAudit = auditArray.reduce((sum, slot) => {
-    return sum +
-      (slot['Некорректное входящее событие'] || 0) +
-      (slot['Не найден маршрут для входящего события'] || 0) +
-      (slot['Некорректный ответ от системы-получателя'] || 0) +
-      (slot['Получен ответ без ожидающей операции'] || 0) +
-      (slot['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
-  }, 0)
-
-  const totalCount = allMessages.value.length
-
-  return [
-    { id: 'all',       label: 'Все',         icon: '≡',  count: null,                                                                     activeBg: 'var(--md-surface-3)',    activeColor: 'var(--md-on-surface)' },
-    { id: 'sent',      label: 'Отправлены',  icon: '↑',  count: senderStats.value.totalSent,                                   activeBg: 'rgba(130,177,255,0.2)', activeColor: '#82b1ff' },
-    { id: 'received',  label: 'Получены',    icon: '↓',  count: receiverStats.value.totalReceived,                             activeBg: 'rgba(109,213,140,0.2)', activeColor: 'var(--md-success)' },
-    { id: 'error',     label: 'Операции с ошибкой', icon: '⚠',  count: errorCountFromAudit,                                                          activeBg: 'rgba(242,184,181,0.2)', activeColor: 'var(--md-error)' },
-    { id: 'duplicate', label: 'Дубли',        icon: '♻',  count: totalDuplicateCount.value,                                                 activeBg: 'rgba(246,193,66,0.2)',  activeColor: '#f6c142' },
-  ]
+  return buildFilters(auditActivity.value, senderStats.value, receiverStats.value, totalDuplicateCount.value)
 })
 
 const displayedMessages = computed(() => {
-  let list = allMessages.value
-  
-  // Filter by type
-  if (activeFilter.value !== 'all') list = list.filter(m => m.type === activeFilter.value)
-  
-  // Filter by search
-  if (search.value.trim()) {
-    const q = search.value.trim().toLowerCase()
-    list = list.filter(m =>
-      m.key?.toLowerCase().includes(q) ||
-      m.integration?.toLowerCase().includes(q) ||
-      m.status?.toLowerCase().includes(q)
-    )
-  }
-  
-  // Sort
-  if (sortBy.value) {
-    const col = sortBy.value
-    list = [...list].sort((a, b) => {
-      if (col === 'timestamp') {
-        const va = a[col] ? new Date(a[col]).getTime() : 0
-        const vb = b[col] ? new Date(b[col]).getTime() : 0
-        return sortDir.value === 'asc' ? va - vb : vb - va
-      }
-      const va = String(a[col] ?? '').toLowerCase()
-      const vb = String(b[col] ?? '').toLowerCase()
-      return sortDir.value === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
-    })
-  }
-  
-  return list.slice(0, displayLimit.value)
+  return filterAndSortMessages(allMessages.value, activeFilter.value, search.value, sortBy.value, sortDir.value, displayLimit.value)
 })
 
-function typeStyle(type) {
-  return {
-    sent:      { icon: '↑', label: 'Отправлено', color: '#82b1ff',           bg: 'rgba(130,177,255,0.12)' },
-    received:  { icon: '↓', label: 'Получено',   color: 'var(--md-success)', bg: 'rgba(109,213,140,0.12)' },
-    error:     { icon: '⚠', label: 'Ошибка',     color: 'var(--md-error)',   bg: 'rgba(242,184,181,0.12)' },
-    duplicate: { icon: '♻', label: 'Дубль',      color: '#f6c142',           bg: 'rgba(246,193,66,0.12)'  },
-  }[type] ?? { icon: '?', label: type, color: 'var(--md-on-surface-v)', bg: 'var(--md-surface-3)' }
-}
-
-function truncate(s, n) {
-  if (!s) return '—'
-  return s.length > n ? s.slice(0, 10) + '…' + s.slice(-6) : s
-}
-
-function formatTimestamp(timestamp) {
-  if (!timestamp) return '—'
-  const date = new Date(timestamp)
-  if (isNaN(date.getTime())) return '—'
-  
-  const now = new Date()
-  const isToday = date.toDateString() === now.toDateString()
-  
-  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' ' + 
-         date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
-
-function copy(key) {
-  navigator.clipboard.writeText(key)
-  toast.info('Скопировано')
+function copyLocal(key) {
+  copy(key, toast)
 }
 
 async function loadAll() {
@@ -547,11 +395,11 @@ async function loadAll() {
     ])
     if (sentRes.status === 'fulfilled') {
       const d = sentRes.value.data?.data
-      sentMessages.value = Array.isArray(d) ? d : (d ? [d] : [])
+      sentMessages.value = parseApiResponse(d)
     }
     if (recvRes.status === 'fulfilled') {
       const d = recvRes.value.data?.data
-      receivedEvents.value = Array.isArray(d) ? d : (d ? [d] : [])
+      receivedEvents.value = parseApiResponse(d)
     }
     if (errRes.status === 'fulfilled') {
       const d = errRes.value.data?.data
@@ -571,7 +419,7 @@ async function loadAll() {
       receiverStats.value = { totalReceived: d?.totalReceived || 0, totalDuplicates: d?.totalDuplicates || 0 }
     }
     // Build unified message list only after all data received
-    rebuildMessages()
+    rebuildMessagesLocal()
     lastRefresh.value = new Date().toLocaleTimeString('ru-RU')
     hasLoadedOnce.value = true
   } finally {

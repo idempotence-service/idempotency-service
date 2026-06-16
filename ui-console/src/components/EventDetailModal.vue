@@ -16,7 +16,7 @@
             </div>
             <div class="flex items-center gap-2">
               <button
-                v-if="canRetry"
+                v-if="canRetryStatus"
                 @click="$emit('retry', event.globalKey)"
                 class="btn-danger btn-sm"
                 :disabled="retrying"
@@ -94,9 +94,10 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { coreApi } from '../api/core.js'
 import StatusBadge from './StatusBadge.vue'
+import { formatDate, formatJson, canRetry } from '../utils/eventDetailHelpers.js'
 
 const props = defineProps({
   modelValue: Boolean,
@@ -109,7 +110,7 @@ defineEmits(['update:modelValue', 'retry'])
 const loading = ref(false)
 const details = ref(null)
 
-const canRetry = ['ERROR', 'FAILED'].includes(props.event?.status)
+const canRetryStatus = computed(() => canRetry(props.event?.status))
 
 watch(
   () => props.modelValue,
@@ -127,14 +128,6 @@ watch(
   }
 )
 
-function formatDate(d) {
-  if (!d) return '—'
-  return new Date(d).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'medium' })
-}
-
-function formatJson(obj) {
-  return JSON.stringify(obj, null, 2)
-}
 </script>
 
 <style scoped>

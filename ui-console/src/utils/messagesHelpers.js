@@ -128,6 +128,12 @@ export function calculateAuditActivitySince() {
   return new Date(now.getTime() - 60 * 60000).toISOString()
 }
 
+export function extractErrorMessage(error) {
+  if (error?.response?.data?.error?.text) return error.response.data.error.text
+  if (error?.message) return error.message
+  return 'неизвестно'
+}
+
 export function rebuildMessages(sentMessages, receivedEvents, errorEvents, duplicateEvents) {
   const list = []
 

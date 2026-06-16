@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toggleSort, typeStyle, truncate, formatTimestamp, rebuildMessages, filterAndSortMessages, formatRawFields, calculateErrorCountFromAudit, buildFilters, isInitialLoading, isRefreshing, shouldLoadMore, parseApiResponse, calculateAuditActivitySince } from '../utils/messagesHelpers.js'
+import { toggleSort, typeStyle, truncate, formatTimestamp, rebuildMessages, filterAndSortMessages, formatRawFields, calculateErrorCountFromAudit, buildFilters, isInitialLoading, isRefreshing, shouldLoadMore, parseApiResponse, calculateAuditActivitySince, extractErrorMessage } from '../utils/messagesHelpers.js'
 
 describe('messagesHelpers', () => {
   describe('toggleSort', () => {
@@ -562,6 +562,46 @@ describe('messagesHelpers', () => {
     it('returns valid ISO string', () => {
       const result = calculateAuditActivitySince()
       expect(result).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+    })
+  })
+
+  describe('extractErrorMessage', () => {
+    it('extracts error text from response data', () => {
+      const error = {
+        response: {
+          data: {
+            error: {
+              text: 'Custom error message'
+            }
+          }
+        }
+      }
+      const result = extractErrorMessage(error)
+      expect(result).toBe('Custom error message')
+    })
+
+    it('falls back to error message', () => {
+      const error = {
+        message: 'Standard error message'
+      }
+      const result = extractErrorMessage(error)
+      expect(result).toBe('Standard error message')
+    })
+
+    it('returns default when no error info available', () => {
+      const error = {}
+      const result = extractErrorMessage(error)
+      expect(result).toBe('неизвестно')
+    })
+
+    it('returns default for null', () => {
+      const result = extractErrorMessage(null)
+      expect(result).toBe('неизвестно')
+    })
+
+    it('returns default for undefined', () => {
+      const result = extractErrorMessage(undefined)
+      expect(result).toBe('неизвестно')
     })
   })
 })

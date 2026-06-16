@@ -301,7 +301,7 @@ import { senderApi } from '../api/sender.js'
 import { receiverApi } from '../api/receiver.js'
 import { useToastStore } from '../stores/toast.js'
 import StatusBadge from './StatusBadge.vue'
-import { toggleSort, typeStyle, truncate, formatTimestamp, copy, rebuildMessages, filterAndSortMessages, formatRawFields, calculateErrorCountFromAudit, buildFilters, isInitialLoading, isRefreshing, shouldLoadMore, parseApiResponse, calculateAuditActivitySince } from '../utils/messagesHelpers.js'
+import { toggleSort, typeStyle, truncate, formatTimestamp, copy, rebuildMessages, filterAndSortMessages, formatRawFields, calculateErrorCountFromAudit, buildFilters, isInitialLoading, isRefreshing, shouldLoadMore, parseApiResponse, calculateAuditActivitySince, extractErrorMessage } from '../utils/messagesHelpers.js'
 
 const toast = useToastStore()
 
@@ -438,7 +438,7 @@ async function retryEvent(key) {
       toast.error('Ошибка: ' + (res.data?.error?.text || 'неизвестно'))
     }
   } catch (e) {
-    toast.error('Ошибка: ' + (e.response?.data?.error?.text || e.message))
+    toast.error('Ошибка: ' + extractErrorMessage(e))
   } finally {
     retryingKey.value = null
   }

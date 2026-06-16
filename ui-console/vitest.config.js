@@ -7,5 +7,11 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/tests/setup.js'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{js,vue}'],
+      exclude: ['src/tests/**', 'src/main.js'],
+      all: true,
+    },
   },
 })

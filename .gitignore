@@ -39,6 +39,8 @@ ui-console/node_modules/
 ui-console/dist/
 ui-console/.vite/
 ui-console/.cache/
+ui-console/coverage/
+ui-console/.nyc_output/
 ui-console/.env
 ui-console/.env.local
 ui-console/.env.production

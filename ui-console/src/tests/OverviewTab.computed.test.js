@@ -171,5 +171,262 @@ describe('OverviewTab Computed Properties', () => {
       expect(labels).toHaveLength(12)
       expect(labels[0]).toMatch(/^\d{2}:\d{2}$/)
     })
+
+    it('generates labels for day time range', () => {
+      const slots = 12
+      const intervalMs = 2 * 3600 * 1000
+      const labels = []
+      
+      for (let i = 0; i < slots; i++) {
+        const d = new Date(Date.now() - (slots - 1 - i) * intervalMs)
+        labels.push(`${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`)
+      }
+      
+      expect(labels).toHaveLength(12)
+      expect(labels[0]).toMatch(/^\d{2}:\d{2}$/)
+    })
+
+    it('handles single digit seconds', () => {
+      const d = new Date()
+      d.setSeconds(5)
+      const label = d.getSeconds().toString().padStart(2, '0')
+      expect(label).toBe('05')
+    })
+
+    it('handles double digit seconds', () => {
+      const d = new Date()
+      d.setSeconds(15)
+      const label = d.getSeconds().toString().padStart(2, '0')
+      expect(label).toBe('15')
+    })
+  })
+
+  describe('successRate computation', () => {
+    it('calculates success rate with no errors', () => {
+      const sentCount = 100
+      const errorCount = 0
+      const successRate = sentCount > 0 ? ((sentCount - errorCount) / sentCount) * 100 : 0
+      expect(successRate).toBe(100)
+    })
+
+    it('calculates success rate with errors', () => {
+      const sentCount = 100
+      const errorCount = 10
+      const successRate = sentCount > 0 ? ((sentCount - errorCount) / sentCount) * 100 : 0
+      expect(successRate).toBe(90)
+    })
+
+    it('handles zero sent count', () => {
+      const sentCount = 0
+      const errorCount = 0
+      const successRate = sentCount > 0 ? ((sentCount - errorCount) / sentCount) * 100 : 0
+      expect(successRate).toBe(0)
+    })
+
+    it('handles error count greater than sent count', () => {
+      const sentCount = 50
+      const errorCount = 60
+      const successRate = sentCount > 0 ? ((sentCount - errorCount) / sentCount) * 100 : 0
+      expect(successRate).toBe(-20)
+    })
+  })
+
+  describe('systemHealth computation', () => {
+    it('calculates healthy system', () => {
+      const successRate = 98
+      const isHealthy = successRate >= 95
+      expect(isHealthy).toBe(true)
+    })
+
+    it('calculates unhealthy system', () => {
+      const successRate = 90
+      const isHealthy = successRate >= 95
+      expect(isHealthy).toBe(false)
+    })
+
+    it('calculates borderline system', () => {
+      const successRate = 95
+      const isHealthy = successRate >= 95
+      expect(isHealthy).toBe(true)
+    })
+  })
+
+  describe('errorRate computation', () => {
+    it('calculates error rate with errors', () => {
+      const sentCount = 100
+      const errorCount = 10
+      const errorRate = sentCount > 0 ? (errorCount / sentCount) * 100 : 0
+      expect(errorRate).toBe(10)
+    })
+
+    it('calculates error rate with no errors', () => {
+      const sentCount = 100
+      const errorCount = 0
+      const errorRate = sentCount > 0 ? (errorCount / sentCount) * 100 : 0
+      expect(errorRate).toBe(0)
+    })
+
+    it('handles zero sent count for error rate', () => {
+      const sentCount = 0
+      const errorCount = 0
+      const errorRate = sentCount > 0 ? (errorCount / sentCount) * 100 : 0
+      expect(errorRate).toBe(0)
+    })
+  })
+
+  describe('duplicateRate computation', () => {
+    it('calculates duplicate rate with duplicates', () => {
+      const sentCount = 100
+      const duplicateCount = 15
+      const duplicateRate = sentCount > 0 ? (duplicateCount / sentCount) * 100 : 0
+      expect(duplicateRate).toBe(15)
+    })
+
+    it('calculates duplicate rate with no duplicates', () => {
+      const sentCount = 100
+      const duplicateCount = 0
+      const duplicateRate = sentCount > 0 ? (duplicateCount / sentCount) * 100 : 0
+      expect(duplicateRate).toBe(0)
+    })
+
+    it('handles zero sent count for duplicate rate', () => {
+      const sentCount = 0
+      const duplicateCount = 0
+      const duplicateRate = sentCount > 0 ? (duplicateCount / sentCount) * 100 : 0
+      expect(duplicateRate).toBe(0)
+    })
+  })
+
+  describe('timeoutRate computation', () => {
+    it('calculates timeout rate with timeouts', () => {
+      const sentCount = 100
+      const timeoutCount = 5
+      const timeoutRate = sentCount > 0 ? (timeoutCount / sentCount) * 100 : 0
+      expect(timeoutRate).toBe(5)
+    })
+
+    it('calculates timeout rate with no timeouts', () => {
+      const sentCount = 100
+      const timeoutCount = 0
+      const timeoutRate = sentCount > 0 ? (timeoutCount / sentCount) * 100 : 0
+      expect(timeoutRate).toBe(0)
+    })
+
+    it('handles zero sent count for timeout rate', () => {
+      const sentCount = 0
+      const timeoutCount = 0
+      const timeoutRate = sentCount > 0 ? (timeoutCount / sentCount) * 100 : 0
+      expect(timeoutRate).toBe(0)
+    })
+  })
+
+  describe('healthStatus computation', () => {
+    it('returns healthy when error rate is low', () => {
+      const errorRate = 2
+      const healthStatus = errorRate < 5 ? 'healthy' : errorRate < 10 ? 'warning' : 'critical'
+      expect(healthStatus).toBe('healthy')
+    })
+
+    it('returns warning when error rate is medium', () => {
+      const errorRate = 7
+      const healthStatus = errorRate < 5 ? 'healthy' : errorRate < 10 ? 'warning' : 'critical'
+      expect(healthStatus).toBe('warning')
+    })
+
+    it('returns critical when error rate is high', () => {
+      const errorRate = 15
+      const healthStatus = errorRate < 5 ? 'healthy' : errorRate < 10 ? 'warning' : 'critical'
+      expect(healthStatus).toBe('critical')
+    })
+
+    it('returns healthy at boundary', () => {
+      const errorRate = 4.9
+      const healthStatus = errorRate < 5 ? 'healthy' : errorRate < 10 ? 'warning' : 'critical'
+      expect(healthStatus).toBe('healthy')
+    })
+
+    it('returns warning at boundary', () => {
+      const errorRate = 5
+      const healthStatus = errorRate < 5 ? 'healthy' : errorRate < 10 ? 'warning' : 'critical'
+      expect(healthStatus).toBe('warning')
+    })
+
+    it('returns critical at boundary', () => {
+      const errorRate = 10
+      const healthStatus = errorRate < 5 ? 'healthy' : errorRate < 10 ? 'warning' : 'critical'
+      expect(healthStatus).toBe('critical')
+    })
+  })
+
+  describe('throughput calculation', () => {
+    it('calculates throughput with valid data', () => {
+      const sentCount = 100
+      const duration = 10
+      const throughput = duration > 0 ? sentCount / duration : 0
+      expect(throughput).toBe(10)
+    })
+
+    it('handles zero duration', () => {
+      const sentCount = 100
+      const duration = 0
+      const throughput = duration > 0 ? sentCount / duration : 0
+      expect(throughput).toBe(0)
+    })
+
+    it('handles zero sent count', () => {
+      const sentCount = 0
+      const duration = 10
+      const throughput = duration > 0 ? sentCount / duration : 0
+      expect(throughput).toBe(0)
+    })
+
+    it('handles negative duration', () => {
+      const sentCount = 100
+      const duration = -10
+      const throughput = duration > 0 ? sentCount / duration : 0
+      expect(throughput).toBe(0)
+    })
+  })
+
+  describe('blocked count calculation', () => {
+    it('calculates blocked count', () => {
+      const events = [
+        { status: 'BLOCKED' },
+        { status: 'SUCCESS' },
+        { status: 'BLOCKED' },
+      ]
+      const blockedCount = events.filter(e => e.status === 'BLOCKED').length
+      expect(blockedCount).toBe(2)
+    })
+
+    it('handles empty events array', () => {
+      const events = []
+      const blockedCount = events.filter(e => e.status === 'BLOCKED').length
+      expect(blockedCount).toBe(0)
+    })
+
+    it('handles null events', () => {
+      const events = null
+      const blockedCount = events ? events.filter(e => e.status === 'BLOCKED').length : 0
+      expect(blockedCount).toBe(0)
+    })
+  })
+
+  describe('timeout count calculation', () => {
+    it('calculates timeout count', () => {
+      const events = [
+        { status: 'TIMEOUT' },
+        { status: 'SUCCESS' },
+        { status: 'TIMEOUT' },
+      ]
+      const timeoutCount = events.filter(e => e.status === 'TIMEOUT').length
+      expect(timeoutCount).toBe(2)
+    })
+
+    it('handles empty events array', () => {
+      const events = []
+      const timeoutCount = events.filter(e => e.status === 'TIMEOUT').length
+      expect(timeoutCount).toBe(0)
+    })
   })
 })

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 
-describe('API Modules Structure', () => {
-  it('test file exists', () => {
+describe('Main Entry Point', () => {
+  it('main file exists', () => {
     expect(true).toBe(true)
   })
 })

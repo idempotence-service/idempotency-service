@@ -105,7 +105,7 @@ class RequestDispatchProcessorTest {
         assertEquals(1, processor.processBatch(1));
 
         verify(kafkaJsonProducerRegistry, never()).send(anyString(), anyString(), anyString(), any());
-        verify(coreMetrics).recordOutboxFailure(any(Duration.class));
+        verify(coreMetrics).recordOutboxFailure(eq("int"), any(Duration.class));
     }
 
     @Test
@@ -117,7 +117,7 @@ class RequestDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordOutboxOwnershipLost();
+        verify(coreMetrics).recordOutboxOwnershipLost("int");
     }
 
     @Test
@@ -130,7 +130,7 @@ class RequestDispatchProcessorTest {
         processor.processBatch(1);
 
         verify(kafkaJsonProducerRegistry).send(eq("localhost:9092"), eq("request-out"), eq("gk-1"), any());
-        verify(coreMetrics).recordOutboxSuccess(any(Duration.class));
+        verify(coreMetrics).recordOutboxSuccess(eq("int"), any(Duration.class));
     }
 
     @Test
@@ -142,7 +142,7 @@ class RequestDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordOutboxOwnershipLost();
+        verify(coreMetrics).recordOutboxOwnershipLost("int");
     }
 
     @Test
@@ -157,7 +157,7 @@ class RequestDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordOutboxRetry(any(Duration.class));
+        verify(coreMetrics).recordOutboxRetry(eq("int"), any(Duration.class));
     }
 
     @Test
@@ -172,7 +172,7 @@ class RequestDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordOutboxOwnershipLost();
+        verify(coreMetrics).recordOutboxOwnershipLost("int");
     }
 
     @Test
@@ -186,7 +186,7 @@ class RequestDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordOutboxFailure(any(Duration.class));
+        verify(coreMetrics).recordOutboxFailure(eq("int"), any(Duration.class));
     }
 
     private void stubSnapshotWithRequestOut() {

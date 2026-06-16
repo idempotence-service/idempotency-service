@@ -106,7 +106,7 @@ class ReceiverDispatchProcessorTest {
         processor.processBatch(1);
 
         verify(kafkaJsonProducerRegistry, never()).send(anyString(), anyString(), anyString(), any());
-        verify(coreMetrics).recordDeliveryFailure(any(Duration.class));
+        verify(coreMetrics).recordDeliveryFailure(eq("int"), any(Duration.class));
     }
 
     @Test
@@ -117,7 +117,7 @@ class ReceiverDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordDeliveryOwnershipLost();
+        verify(coreMetrics).recordDeliveryOwnershipLost("int");
     }
 
     @Test
@@ -130,7 +130,7 @@ class ReceiverDispatchProcessorTest {
         processor.processBatch(1);
 
         verify(kafkaJsonProducerRegistry).send(eq("localhost:9092"), eq("reply-in"), eq("gk-1"), any());
-        verify(coreMetrics).recordDeliverySuccess(any(Duration.class));
+        verify(coreMetrics).recordDeliverySuccess(eq("int"), any(Duration.class));
     }
 
     @Test
@@ -142,7 +142,7 @@ class ReceiverDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordDeliverySuccess(any(Duration.class));
+        verify(coreMetrics).recordDeliverySuccess(eq("int"), any(Duration.class));
     }
 
     @Test
@@ -153,7 +153,7 @@ class ReceiverDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordDeliveryOwnershipLost();
+        verify(coreMetrics).recordDeliveryOwnershipLost("int");
     }
 
     @Test
@@ -167,7 +167,7 @@ class ReceiverDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordDeliveryRetry(any(Duration.class));
+        verify(coreMetrics).recordDeliveryRetry(eq("int"), any(Duration.class));
     }
 
     @Test
@@ -181,7 +181,7 @@ class ReceiverDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordDeliveryOwnershipLost();
+        verify(coreMetrics).recordDeliveryOwnershipLost("int");
     }
 
     @Test
@@ -194,7 +194,7 @@ class ReceiverDispatchProcessorTest {
 
         processor.processBatch(1);
 
-        verify(coreMetrics).recordDeliveryFailure(any(Duration.class));
+        verify(coreMetrics).recordDeliveryFailure(eq("int"), any(Duration.class));
     }
 
     private void stubSyncSnapshot() {

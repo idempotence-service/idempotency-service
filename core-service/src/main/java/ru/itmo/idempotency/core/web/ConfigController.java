@@ -2,6 +2,7 @@ package ru.itmo.idempotency.core.web;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -12,11 +13,13 @@ import ru.itmo.idempotency.common.config.RouteCatalog;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.web.ApiResponse;
 import ru.itmo.idempotency.core.config.CoreProperties;
+import ru.itmo.idempotency.core.service.CoreMetrics;
 
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.List;
 
+@Slf4j
 @Validated
 @RestController
 @RequestMapping("/config")
@@ -25,6 +28,7 @@ public class ConfigController {
 
     private final CoreProperties coreProperties;
     private final RouteCatalog routeCatalog;
+    private final CoreMetrics coreMetrics;
 
     @GetMapping
     public ApiResponse<ConfigDtos.FullConfig> getConfig() {
@@ -35,10 +39,10 @@ public class ConfigController {
 
         return ApiResponse.success(new ConfigDtos.FullConfig(
             new ConfigDtos.SchedulerConfig(
-                s.getOutboxFixedDelay().getSeconds(),
-                s.getDeliveryFixedDelay().getSeconds(),
-                s.getReplyTimeoutFixedDelay().getSeconds(),
-                s.getCleanupFixedDelay().getSeconds(),
+                toSeconds(s.getOutboxFixedDelay()),
+                toSeconds(s.getDeliveryFixedDelay()),
+                toSeconds(s.getReplyTimeoutFixedDelay()),
+                toSeconds(s.getCleanupFixedDelay()),
                 s.getBatchSize()
             ),
             new ConfigDtos.ListenerConfig(
@@ -62,11 +66,13 @@ public class ConfigController {
     @PutMapping("/scheduler")
     public ApiResponse<String> updateScheduler(@Valid @RequestBody ConfigDtos.SchedulerConfig req) {
         CoreProperties.Scheduler s = coreProperties.getScheduler();
-        if (req.outboxFixedDelaySeconds() != null) s.setOutboxFixedDelay(Duration.ofSeconds(req.outboxFixedDelaySeconds()));
-        if (req.deliveryFixedDelaySeconds() != null) s.setDeliveryFixedDelay(Duration.ofSeconds(req.deliveryFixedDelaySeconds()));
-        if (req.replyTimeoutFixedDelaySeconds() != null) s.setReplyTimeoutFixedDelay(Duration.ofSeconds(req.replyTimeoutFixedDelaySeconds()));
-        if (req.cleanupFixedDelaySeconds() != null) s.setCleanupFixedDelay(Duration.ofSeconds(req.cleanupFixedDelaySeconds()));
+        if (req.outboxFixedDelaySeconds() != null) s.setOutboxFixedDelay(toDuration(req.outboxFixedDelaySeconds()));
+        if (req.deliveryFixedDelaySeconds() != null) s.setDeliveryFixedDelay(toDuration(req.deliveryFixedDelaySeconds()));
+        if (req.replyTimeoutFixedDelaySeconds() != null) s.setReplyTimeoutFixedDelay(toDuration(req.replyTimeoutFixedDelaySeconds()));
+        if (req.cleanupFixedDelaySeconds() != null) s.setCleanupFixedDelay(toDuration(req.cleanupFixedDelaySeconds()));
         if (req.batchSize() != null) s.setBatchSize(req.batchSize());
+        coreMetrics.recordConfigUpdate("scheduler");
+        log.info("Scheduler config updated: {}", req);
         return ApiResponse.success("ok");
     }
 
@@ -78,6 +84,8 @@ public class ConfigController {
         if (req.replyTimeoutSeconds() != null) r.setReplyTimeout(Duration.ofSeconds(req.replyTimeoutSeconds()));
         if (req.leaseDurationSeconds() != null) r.setLeaseDuration(Duration.ofSeconds(req.leaseDurationSeconds()));
         if (req.maxAttempts() != null) r.setMaxAttempts(req.maxAttempts());
+        coreMetrics.recordConfigUpdate("resilience");
+        log.info("Resilience config updated: {}", req);
         return ApiResponse.success("ok");
     }
 
@@ -86,6 +94,8 @@ public class ConfigController {
         CoreProperties.Cleanup c = coreProperties.getCleanup();
         if (req.retentionSeconds() != null) c.setRetention(Duration.ofSeconds(req.retentionSeconds()));
         if (req.batchSize() != null) c.setBatchSize(req.batchSize());
+        coreMetrics.recordConfigUpdate("cleanup");
+        log.info("Cleanup config updated: {}", req);
         return ApiResponse.success("ok");
     }
 
@@ -94,6 +104,8 @@ public class ConfigController {
         CoreProperties.Listener l = coreProperties.getListener();
         if (req.inboundConcurrency() != null) l.setInboundConcurrency(req.inboundConcurrency());
         if (req.replyConcurrency() != null) l.setReplyConcurrency(req.replyConcurrency());
+        coreMetrics.recordConfigUpdate("listener");
+        log.info("Listener config updated: {}", req);
         return ApiResponse.success("ok");
     }
 
@@ -140,6 +152,14 @@ public class ConfigController {
                 channel.partitions(),
                 channel.replicationFactor()
         );
+    }
+
+    private double toSeconds(Duration duration) {
+        return duration.toMillis() / 1000.0;
+    }
+
+    private Duration toDuration(double seconds) {
+        return Duration.ofMillis(Math.round(seconds * 1000.0));
     }
 
 }

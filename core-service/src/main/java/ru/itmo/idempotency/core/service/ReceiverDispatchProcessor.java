@@ -80,9 +80,9 @@ public class ReceiverDispatchProcessor {
                         "Не найден канал reply_in в сохраненном yaml_snapshot"
                 )) {
                     log.warn("Lost ownership of {} before schema validation error", entity.getGlobalKey());
-                    coreMetrics.recordDeliveryOwnershipLost();
+                    coreMetrics.recordDeliveryOwnershipLost(snapshot.integration());
                 } else {
-                    coreMetrics.recordDeliveryFailure(Duration.ofNanos(System.nanoTime() - startedAt));
+                    coreMetrics.recordDeliveryFailure(snapshot.integration(), Duration.ofNanos(System.nanoTime() - startedAt));
                 }
                 return true;
             }
@@ -99,16 +99,16 @@ public class ReceiverDispatchProcessor {
                 if (snapshot.replyOut() == null) {
                     if (!idempotencyService.completeClaimedDelivery(entity.getGlobalKey(), ownerId, IdempotencyStatus.COMMITTED, null)) {
                         log.warn("Lost ownership of {} before marking as committed", entity.getGlobalKey());
-                        coreMetrics.recordDeliveryOwnershipLost();
+                        coreMetrics.recordDeliveryOwnershipLost(snapshot.integration());
                     } else {
-                        coreMetrics.recordDeliverySuccess(duration);
+                        coreMetrics.recordDeliverySuccess(snapshot.integration(), duration);
                     }
                 } else {
                     if (!idempotencyService.completeClaimedDelivery(entity.getGlobalKey(), ownerId, IdempotencyStatus.WAITING_ASYNC_RESPONSE, null)) {
                         log.warn("Lost ownership of {} before waiting async reply", entity.getGlobalKey());
-                        coreMetrics.recordDeliveryOwnershipLost();
+                        coreMetrics.recordDeliveryOwnershipLost(snapshot.integration());
                     } else {
-                        coreMetrics.recordDeliverySuccess(duration);
+                        coreMetrics.recordDeliverySuccess(snapshot.integration(), duration);
                     }
                 }
             } catch (Exception exception) {
@@ -124,9 +124,9 @@ public class ReceiverDispatchProcessor {
                             coreProperties.getResilience().getMaxAttempts()
                     )) {
                         log.warn("Lost ownership of {} before retry scheduling", entity.getGlobalKey());
-                        coreMetrics.recordDeliveryOwnershipLost();
+                        coreMetrics.recordDeliveryOwnershipLost(snapshot.integration());
                     } else {
-                        coreMetrics.recordDeliveryRetry(duration);
+                        coreMetrics.recordDeliveryRetry(snapshot.integration(), duration);
                     }
                     log.warn("Temporary delivery issue for {}", entity.getGlobalKey(), exception);
                     return true;
@@ -134,9 +134,9 @@ public class ReceiverDispatchProcessor {
 
                 if (!idempotencyService.failClaimedDelivery(entity.getGlobalKey(), ownerId, description)) {
                     log.warn("Lost ownership of {} before marking error", entity.getGlobalKey());
-                    coreMetrics.recordDeliveryOwnershipLost();
+                    coreMetrics.recordDeliveryOwnershipLost(snapshot.integration());
                 } else {
-                    coreMetrics.recordDeliveryFailure(duration);
+                    coreMetrics.recordDeliveryFailure(snapshot.integration(), duration);
                 }
                 log.warn("Permanent delivery issue for {}", entity.getGlobalKey(), exception);
             }

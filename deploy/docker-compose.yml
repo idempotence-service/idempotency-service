@@ -237,7 +237,45 @@ services:
     ports:
       - "18083:80"
 
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: on-failure
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    depends_on:
+      core-service-1:
+        condition: service_started
+      core-service-2:
+        condition: service_started
+      core-service-3:
+        condition: service_started
+    ports:
+      - "19090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana-oss:11.1.0
+    restart: on-failure
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "18084:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
 volumes:
   postgres-shard-0-data:
   postgres-shard-1-data:
   postgres-shard-2-data:
+  prometheus-data:
+  grafana-data:

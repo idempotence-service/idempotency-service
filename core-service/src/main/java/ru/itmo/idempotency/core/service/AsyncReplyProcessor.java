@@ -55,7 +55,7 @@ public class AsyncReplyProcessor {
         IdempotencyEntity entity = idempotencySearchService.acquireUniqueWaitIfLocked(globalKey).orElse(null);
         if (entity == null || entity.getStatus() != IdempotencyStatus.WAITING_ASYNC_RESPONSE) {
             eventAuditService.save(globalKey, route, AuditReasons.ORPHAN_REPLY, headers, payload);
-            coreMetrics.recordAsyncReplyOrphan();
+            coreMetrics.recordAsyncReplyOrphan(route.integration());
             return;
         }
 
@@ -63,7 +63,7 @@ public class AsyncReplyProcessor {
         String resultDescription = payload.path("resultDescription").asText(null);
         if ("SUCCESS".equalsIgnoreCase(result)) {
             idempotencyService.changeStatus(entity, IdempotencyStatus.COMMITTED, resultDescription);
-            coreMetrics.recordAsyncReplySuccess();
+            coreMetrics.recordAsyncReplySuccess(route.integration());
             return;
         }
 
@@ -75,21 +75,21 @@ public class AsyncReplyProcessor {
                     coreProperties.getResilience().getMaxAttempts()
             );
             if (updated.getStatus() == IdempotencyStatus.RESERVED) {
-                coreMetrics.recordAsyncReplyResend();
+                coreMetrics.recordAsyncReplyResend(route.integration());
             } else {
-                coreMetrics.recordAsyncReplyFailure();
+                coreMetrics.recordAsyncReplyFailure(route.integration());
             }
             return;
         }
 
         idempotencyService.markAsError(entity, "Ошибка обработки события системой-получателем: " + resultDescription);
-        coreMetrics.recordAsyncReplyFailure();
+        coreMetrics.recordAsyncReplyFailure(route.integration());
     }
 
     @Transactional
     protected void saveInvalidReply(RouteModels.RouteSnapshot route, String rawMessage) {
         log.warn("Invalid async reply received for route {}", route.integration());
         eventAuditService.save(null, route, AuditReasons.INVALID_RECEIVER_REPLY, null, coreJsonSupport.safeRawPayload(rawMessage));
-        coreMetrics.recordAsyncReplyInvalid();
+        coreMetrics.recordAsyncReplyInvalid(route.integration());
     }
 }

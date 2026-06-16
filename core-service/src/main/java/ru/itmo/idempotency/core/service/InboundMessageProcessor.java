@@ -3,7 +3,6 @@ package ru.itmo.idempotency.core.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.messaging.MessageModels;
@@ -23,39 +22,39 @@ public class InboundMessageProcessor {
 
     public void handle(RouteModels.RouteSnapshot route, String rawMessage) {
         try (MdcContextSupport.Scope ignored = mdcContextSupport.open(null, null, route.integration(), null)) {
-        MessageModels.MessageEnvelope envelope;
-        try {
-            envelope = coreJsonSupport.parseEnvelope(rawMessage);
-        } catch (IllegalArgumentException exception) {
-            saveInvalidInbound(route, rawMessage);
-            return;
-        }
-
-        Map<String, Object> headers = envelope.headers();
-        JsonNode payload = envelope.payload();
-        String uid = headers != null && headers.get("uid") != null ? String.valueOf(headers.get("uid")) : null;
-        if (uid == null || uid.isBlank() || payload == null || payload.isNull()) {
-            saveInvalidInbound(route, rawMessage);
-            return;
-        }
-
-        String globalKey = route.service() + ":" + route.integration() + ":" + uid;
-        try (MdcContextSupport.Scope messageScope = mdcContextSupport.open(globalKey, uid, route.integration(), null)) {
-            JsonNode userHeaders = coreJsonSupport.headersWithoutUid(headers);
+            MessageModels.MessageEnvelope envelope;
             try {
-                transactionalHandler.saveUnique(globalKey, uid, route, userHeaders, payload);
-                coreMetrics.recordInboundUnique();
-            } catch (DataIntegrityViolationException exception) {
+                envelope = coreJsonSupport.parseEnvelope(rawMessage);
+            } catch (IllegalArgumentException exception) {
+                saveInvalidInbound(route, rawMessage);
+                return;
+            }
+
+            Map<String, Object> headers = envelope.headers();
+            JsonNode payload = envelope.payload();
+            String uid = headers != null && headers.get("uid") != null ? String.valueOf(headers.get("uid")) : null;
+            if (uid == null || uid.isBlank() || payload == null || payload.isNull()) {
+                saveInvalidInbound(route, rawMessage);
+                return;
+            }
+
+            String globalKey = route.service() + ":" + route.integration() + ":" + uid;
+            try (MdcContextSupport.Scope messageScope = mdcContextSupport.open(globalKey, uid, route.integration(), null)) {
+                JsonNode userHeaders = coreJsonSupport.headersWithoutUid(headers);
+                if (transactionalHandler.saveUnique(globalKey, uid, route, userHeaders, payload)) {
+                    coreMetrics.recordInboundUnique(route.integration());
+                    return;
+                }
+
                 transactionalHandler.saveDuplicate(globalKey, route, coreJsonSupport.toJsonNode(headers), payload);
-                coreMetrics.recordInboundDuplicate();
+                coreMetrics.recordInboundDuplicate(route.integration());
             }
         }
-    }
     }
 
     private void saveInvalidInbound(RouteModels.RouteSnapshot route, String rawMessage) {
         log.warn("Invalid inbound message received for route {}", route.integration());
         eventAuditService.save(null, route, AuditReasons.INVALID_INBOUND_EVENT, null, coreJsonSupport.safeRawPayload(rawMessage));
-        coreMetrics.recordInboundInvalid();
+        coreMetrics.recordInboundInvalid(route.integration());
     }
 }

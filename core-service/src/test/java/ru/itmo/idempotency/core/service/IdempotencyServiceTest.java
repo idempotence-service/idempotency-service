@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.Spy;
@@ -43,6 +44,8 @@ class IdempotencyServiceTest {
     private ObjectMapper objectMapper = new ObjectMapper();
     @Mock
     private StorageShardExecutor storageShardExecutor;
+    @Mock
+    private NamedParameterJdbcTemplate namedParameterJdbcTemplate;
 
     @InjectMocks
     private IdempotencyService idempotencyService;

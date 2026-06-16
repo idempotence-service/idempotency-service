@@ -72,7 +72,7 @@ class AsyncReplyProcessorTest {
         processor.handle(route, "bad");
 
         verify(eventAuditService).save(eq(null), eq(route), eq(AuditReasons.INVALID_RECEIVER_REPLY), eq(null), any());
-        verify(coreMetrics).recordAsyncReplyInvalid();
+        verify(coreMetrics).recordAsyncReplyInvalid("int");
     }
 
     @Test
@@ -83,7 +83,7 @@ class AsyncReplyProcessorTest {
 
         processor.handle(route, "{}");
 
-        verify(coreMetrics).recordAsyncReplyInvalid();
+        verify(coreMetrics).recordAsyncReplyInvalid("int");
     }
 
     @Test
@@ -96,7 +96,7 @@ class AsyncReplyProcessorTest {
 
         processor.handle(route, "{}");
 
-        verify(coreMetrics).recordAsyncReplyInvalid();
+        verify(coreMetrics).recordAsyncReplyInvalid("int");
     }
 
     @Test
@@ -107,7 +107,7 @@ class AsyncReplyProcessorTest {
         processor.handle(route, "{}");
 
         verify(eventAuditService).save(eq("gk-1"), eq(route), eq(AuditReasons.ORPHAN_REPLY), any(), any());
-        verify(coreMetrics).recordAsyncReplyOrphan();
+        verify(coreMetrics).recordAsyncReplyOrphan("int");
     }
 
     @Test
@@ -118,7 +118,7 @@ class AsyncReplyProcessorTest {
 
         processor.handle(route, "{}");
 
-        verify(coreMetrics).recordAsyncReplyOrphan();
+        verify(coreMetrics).recordAsyncReplyOrphan("int");
     }
 
     @Test
@@ -130,7 +130,7 @@ class AsyncReplyProcessorTest {
         processor.handle(route, "{}");
 
         verify(idempotencyService).changeStatus(entity, IdempotencyStatus.COMMITTED, "desc");
-        verify(coreMetrics).recordAsyncReplySuccess();
+        verify(coreMetrics).recordAsyncReplySuccess("int");
     }
 
     @Test
@@ -143,7 +143,7 @@ class AsyncReplyProcessorTest {
 
         processor.handle(route, "{}");
 
-        verify(coreMetrics).recordAsyncReplyResend();
+        verify(coreMetrics).recordAsyncReplyResend("int");
     }
 
     @Test
@@ -156,7 +156,7 @@ class AsyncReplyProcessorTest {
 
         processor.handle(route, "{}");
 
-        verify(coreMetrics).recordAsyncReplyFailure();
+        verify(coreMetrics).recordAsyncReplyFailure("int");
     }
 
     @Test
@@ -168,7 +168,7 @@ class AsyncReplyProcessorTest {
         processor.handle(route, "{}");
 
         verify(idempotencyService).markAsError(eq(entity), anyString());
-        verify(coreMetrics).recordAsyncReplyFailure();
+        verify(coreMetrics).recordAsyncReplyFailure("int");
         verify(idempotencyService, never()).scheduleRetry(any(), anyString(), any(Duration.class), anyInt());
     }
 

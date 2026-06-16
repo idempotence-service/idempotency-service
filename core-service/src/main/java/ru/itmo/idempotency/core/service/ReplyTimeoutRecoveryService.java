@@ -68,7 +68,7 @@ public class ReplyTimeoutRecoveryService {
                     coreProperties.getResilience().getMaxAttempts()
             );
             eventAuditService.save(entity.getGlobalKey(), snapshot, AuditReasons.ASYNC_REPLY_TIMEOUT, entity.getHeaders(), entity.getPayload());
-            coreMetrics.recordAsyncReplyTimeout();
+            coreMetrics.recordAsyncReplyTimeout(snapshot.integration());
             log.warn("Timed out waiting for async reply for {}", entity.getGlobalKey());
         }
         return true;

@@ -11,7 +11,7 @@ class ConfigDtosSmokeTest {
     @Test
     void shouldInstantiateAllRecords() {
         ConfigDtos.ChannelInfo channel = new ConfigDtos.ChannelInfo("localhost:9092", "topic", "group", 1, (short) 1);
-        ConfigDtos.SchedulerConfig scheduler = new ConfigDtos.SchedulerConfig(5L, 5L, 30L, 86400L, 100);
+        ConfigDtos.SchedulerConfig scheduler = new ConfigDtos.SchedulerConfig(0.25, 0.5, 30.0, 86400.0, 100);
         ConfigDtos.ListenerConfig listener = new ConfigDtos.ListenerConfig(1, 1);
         ConfigDtos.ResilienceConfig resilience = new ConfigDtos.ResilienceConfig(10L, 10L, 60L, 30L, 5);
         ConfigDtos.CleanupConfig cleanup = new ConfigDtos.CleanupConfig(604800L, 500);

@@ -60,7 +60,7 @@ class CoreConfigApiIntegrationTest {
                         .header("Authorization", "Bearer operator-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"outboxFixedDelaySeconds":60,"batchSize":25}
+                                {"outboxFixedDelaySeconds":0.25,"batchSize":25}
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
@@ -68,7 +68,7 @@ class CoreConfigApiIntegrationTest {
 
         mockMvc.perform(get("/config")
                         .header("Authorization", "Bearer operator-token"))
-                .andExpect(jsonPath("$.data.scheduler.outboxFixedDelaySeconds").value(60))
+                .andExpect(jsonPath("$.data.scheduler.outboxFixedDelaySeconds").value(0.25))
                 .andExpect(jsonPath("$.data.scheduler.batchSize").value(25));
     }
 

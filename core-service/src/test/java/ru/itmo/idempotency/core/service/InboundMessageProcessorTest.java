@@ -7,7 +7,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.common.messaging.MessageModels;
 
@@ -16,7 +15,6 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,7 +52,7 @@ class InboundMessageProcessorTest {
         processor.handle(route, "{}");
 
         verify(eventAuditService).save(eq(null), eq(route), eq(AuditReasons.INVALID_INBOUND_EVENT), eq(null), any());
-        verify(coreMetrics).recordInboundInvalid();
+        verify(coreMetrics).recordInboundInvalid("system1-to-system2");
         verify(transactionalHandler, never()).saveUnique(anyString(), anyString(), any(), any(), any());
     }
 
@@ -69,7 +67,7 @@ class InboundMessageProcessorTest {
 
         processor.handle(route, "{}");
 
-        verify(coreMetrics).recordInboundInvalid();
+        verify(coreMetrics).recordInboundInvalid("system1-to-system2");
     }
 
     @Test
@@ -83,7 +81,7 @@ class InboundMessageProcessorTest {
 
         processor.handle(route, "{}");
 
-        verify(coreMetrics).recordInboundInvalid();
+        verify(coreMetrics).recordInboundInvalid("system1-to-system2");
     }
 
     @Test
@@ -92,6 +90,7 @@ class InboundMessageProcessorTest {
         MessageModels.MessageEnvelope envelope = new MessageModels.MessageEnvelope(Map.of("uid", "u-1"), payload);
         when(coreJsonSupport.parseEnvelope(anyString())).thenReturn(envelope);
         when(coreJsonSupport.headersWithoutUid(any())).thenReturn(JsonNodeFactory.instance.objectNode());
+        when(transactionalHandler.saveUnique(anyString(), anyString(), any(), any(), any())).thenReturn(true);
 
         processor.handle(route, "{}");
 
@@ -102,18 +101,17 @@ class InboundMessageProcessorTest {
                 any(),
                 eq(payload)
         );
-        verify(coreMetrics).recordInboundUnique();
+        verify(coreMetrics).recordInboundUnique("system1-to-system2");
     }
 
     @Test
-    void shouldSaveDuplicateOnIntegrityViolation() {
+    void shouldSaveDuplicateWhenUniqueMessageAlreadyExists() {
         var payload = JsonNodeFactory.instance.objectNode().put("x", 1);
         MessageModels.MessageEnvelope envelope = new MessageModels.MessageEnvelope(Map.of("uid", "u-1"), payload);
         when(coreJsonSupport.parseEnvelope(anyString())).thenReturn(envelope);
         when(coreJsonSupport.headersWithoutUid(any())).thenReturn(JsonNodeFactory.instance.objectNode());
         when(coreJsonSupport.toJsonNode(any())).thenReturn(JsonNodeFactory.instance.objectNode());
-        doThrow(new DataIntegrityViolationException("duplicate"))
-                .when(transactionalHandler).saveUnique(anyString(), anyString(), any(), any(), any());
+        when(transactionalHandler.saveUnique(anyString(), anyString(), any(), any(), any())).thenReturn(false);
 
         processor.handle(route, "{}");
 
@@ -123,6 +121,6 @@ class InboundMessageProcessorTest {
                 any(),
                 eq(payload)
         );
-        verify(coreMetrics).recordInboundDuplicate();
+        verify(coreMetrics).recordInboundDuplicate("system1-to-system2");
     }
 }

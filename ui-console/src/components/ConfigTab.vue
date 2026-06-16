@@ -38,19 +38,19 @@
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label class="label">Outbox delay (сек)</label>
-            <input v-model.number="scheduler.outboxFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.outboxFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Delivery delay (сек)</label>
-            <input v-model.number="scheduler.deliveryFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.deliveryFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Reply timeout check (сек)</label>
-            <input v-model.number="scheduler.replyTimeoutFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.replyTimeoutFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Cleanup delay (сек)</label>
-            <input v-model.number="scheduler.cleanupFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.cleanupFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Batch size</label>

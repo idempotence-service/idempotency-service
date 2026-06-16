@@ -142,6 +142,8 @@ jobs:
           cp -r config .deploy/config
           cp sender-simulator/src/main/resources/application.yml .deploy/sender-application.yml
           cp receiver-simulator/src/main/resources/application.yml .deploy/receiver-application.yml
+          cp deploy/prometheus.yml .deploy/prometheus.yml
+          cp -r deploy/grafana .deploy/grafana
           cat > .deploy/.env <<DEPLOY_ENV
           CORE_SERVICE_IMAGE=${IMAGE_BASE}/core-service:${IMAGE_TAG}
           SENDER_SIMULATOR_IMAGE=${IMAGE_BASE}/sender-simulator:${IMAGE_TAG}
@@ -185,7 +187,7 @@ jobs:
           sleep 20
           docker compose -f docker-compose.yml -p idempotency-service ps
 
-          for service in postgres-shard-0 postgres-shard-1 postgres-shard-2 redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator metrics-aggregator ui-console; do
+          for service in postgres-shard-0 postgres-shard-1 postgres-shard-2 redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator metrics-aggregator ui-console prometheus grafana; do
             container_id=$(docker compose -f docker-compose.yml -p idempotency-service ps -q "$service")
             if [ -z "$container_id" ]; then
               echo "Service $service was not created"

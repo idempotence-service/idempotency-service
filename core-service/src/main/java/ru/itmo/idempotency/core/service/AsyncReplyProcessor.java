@@ -53,10 +53,14 @@ public class AsyncReplyProcessor {
     @Transactional
     protected void processReply(RouteModels.RouteSnapshot route, String globalKey, JsonNode payload, JsonNode headers) {
         IdempotencyEntity entity = idempotencySearchService.acquireUniqueWaitIfLocked(globalKey).orElse(null);
-        if (entity == null || entity.getStatus() != IdempotencyStatus.WAITING_ASYNC_RESPONSE) {
+        if (!canProcessAsyncReply(entity)) {
             eventAuditService.save(globalKey, route, AuditReasons.ORPHAN_REPLY, headers, payload);
             coreMetrics.recordAsyncReplyOrphan(route.integration());
             return;
+        }
+
+        if (entity.getStatus() == IdempotencyStatus.RESERVED) {
+            log.debug("Processing async reply for {} before local transition to waiting state", globalKey);
         }
 
         String result = payload.path("result").asText();
@@ -84,6 +88,16 @@ public class AsyncReplyProcessor {
 
         idempotencyService.markAsError(entity, "Ошибка обработки события системой-получателем: " + resultDescription);
         coreMetrics.recordAsyncReplyFailure(route.integration());
+    }
+
+    private boolean canProcessAsyncReply(IdempotencyEntity entity) {
+        if (entity == null) {
+            return false;
+        }
+        if (entity.getStatus() == IdempotencyStatus.WAITING_ASYNC_RESPONSE) {
+            return true;
+        }
+        return entity.getStatus() == IdempotencyStatus.RESERVED && entity.getOwnerId() != null;
     }
 
     @Transactional

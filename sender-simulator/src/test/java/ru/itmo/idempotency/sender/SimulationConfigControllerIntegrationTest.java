@@ -53,10 +53,10 @@ class SimulationConfigControllerIntegrationTest {
                                 {
                                   "enabled": true,
                                   "integration": "system1-to-system2",
-                                  "intervalSeconds": 5,
+                                  "intervalSeconds": 0.25,
                                   "duplicateEvery": 3,
                                   "burstSize": 2,
-                                  "pauseSeconds": 1
+                                  "pauseSeconds": 0.5
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -65,9 +65,9 @@ class SimulationConfigControllerIntegrationTest {
 
         mockMvc.perform(get("/api/sender/config"))
                 .andExpect(jsonPath("$.data.enabled").value(true))
-                .andExpect(jsonPath("$.data.intervalSeconds").value(5))
+                .andExpect(jsonPath("$.data.intervalSeconds").value(0.25))
                 .andExpect(jsonPath("$.data.duplicateEvery").value(3))
                 .andExpect(jsonPath("$.data.burstSize").value(2))
-                .andExpect(jsonPath("$.data.pauseSeconds").value(1));
+                .andExpect(jsonPath("$.data.pauseSeconds").value(0.5));
     }
 }

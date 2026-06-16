@@ -1,6 +1,6 @@
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY ui-console/package.json ./
+COPY ui-console/package*.json ./
 RUN npm install
 COPY ui-console/ ./
 RUN npm run build

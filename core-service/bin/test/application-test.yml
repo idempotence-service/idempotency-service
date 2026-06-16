@@ -5,6 +5,10 @@ app:
     delivery-fixed-delay: 1d
     reply-timeout-fixed-delay: 7d
     cleanup-fixed-delay: 7d
+    pool-size: 1
+    outbox-workers: 1
+    delivery-workers: 1
+    reply-timeout-workers: 1
   listener:
     inbound-concurrency: 1
     reply-concurrency: 1

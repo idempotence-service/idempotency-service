@@ -28,12 +28,14 @@ management:
       access: read_only
     metrics:
       access: read_only
+    prometheus:
+      access: read_only
   endpoints:
     access:
       default: none
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
   metrics:
     tags:
       application: ${spring.application.name}
@@ -51,6 +53,10 @@ app:
     delivery-fixed-delay: 5s
     reply-timeout-fixed-delay: 15s
     cleanup-fixed-delay: 1d
+    pool-size: 6
+    outbox-workers: 2
+    delivery-workers: 2
+    reply-timeout-workers: 1
     batch-size: 100
   listener:
     inbound-concurrency: 3

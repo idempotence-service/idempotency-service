@@ -52,7 +52,7 @@ app:
     outbox-fixed-delay: 5s
     delivery-fixed-delay: 5s
     reply-timeout-fixed-delay: 15s
-    cleanup-fixed-delay: 1d
+    cleanup-fixed-delay: 1m
     pool-size: 6
     outbox-workers: 2
     delivery-workers: 2

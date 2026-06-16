@@ -1,56 +1,30 @@
 openapi: 3.0.3
 info:
-  title: Idempotency Service API
+  title: Core Service API
   description: |
-    API сервиса идемпотентности. Состоит из трёх компонентов:
-    - **Core Service** (port 8080) — управление событиями, конфигурацией и ручной разбор ошибок
-    - **Sender Simulator** (port 8081) — симулятор отправителя сообщений
-    - **Receiver Simulator** (port 8082) — симулятор получателя сообщений
+    API сервиса идемпотентности. Core Service управляет конфигурацией, 
+    ручным разбором ошибок и предоставляет информацию о дубликатах и таймаутах.
   version: 1.0.0
 
 servers:
   - url: http://localhost:8080
     description: Core Service
-  - url: http://localhost:8081
-    description: Sender Simulator
-  - url: http://localhost:8082
-    description: Receiver Simulator
 
 tags:
-  - name: Core — Manual Review
-    description: Эндпоинты Core Service для ручного разбора событий с ошибками
-  - name: Core — Configuration
-    description: Эндпоинты Core Service для управления конфигурацией
-  - name: Core — Monitoring
-    description: Эндпоинты Core Service для мониторинга (дубликаты, таймауты, аудит)
-  - name: Sender — Send Events
-    description: Отправка событий и ручное тестирование
-  - name: Sender — Monitoring
-    description: Просмотр отправленных сообщений, ответов и статистики
-  - name: Sender — Simulation Config
-    description: Конфигурация автоматической симуляции отправки
-  - name: Sender — State Management
-    description: Сброс состояния отправителя
-  - name: Receiver — Events
-    description: Просмотр полученных событий и статистики
-  - name: Receiver — Mode
-    description: Управление режимом работы ресивера
-  - name: Receiver — Manual Reply
-    description: Ручные ответы на события (для режима MANUAL)
-  - name: Receiver — State Management
-    description: Сброс состояния ресивера
+  - name: Manual Review
+    description: Эндпоинты для ручного разбора событий с ошибками
+  - name: Configuration
+    description: Эндпоинты для управления конфигурацией сервиса
+  - name: Monitoring
+    description: Эндпоинты для мониторинга (дубликаты, таймауты, аудит)
 
 paths:
-
-  # ═══════════════════════════════════════════════════════════════════════════════
-  # Core Service (порт 8080)
-  # ═══════════════════════════════════════════════════════════════════════════════
 
   # ─── Manual Review ────────────────────────────────────────────────────────────
 
   /get-error-events:
     get:
-      tags: [Core — Manual Review]
+      tags: [Manual Review]
       summary: Получить список событий с ошибками
       operationId: getErrorEvents
       parameters:
@@ -90,7 +64,7 @@ paths:
 
   /restart-event:
     post:
-      tags: [Core — Manual Review]
+      tags: [Manual Review]
       summary: Перезапустить событие с ошибкой
       operationId: restartEvent
       requestBody:
@@ -115,7 +89,7 @@ paths:
 
   /get-event-by-id:
     get:
-      tags: [Core — Manual Review]
+      tags: [Manual Review]
       summary: Получить детали события по globalKey
       operationId: getEventById
       parameters:
@@ -140,7 +114,7 @@ paths:
 
   /get-duplicate-events:
     get:
-      tags: [Core — Monitoring]
+      tags: [Manual Review]
       summary: Получить список дубликатов событий
       operationId: getDuplicateEvents
       parameters:
@@ -166,12 +140,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseDuplicateEventPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalError'
 
   /get-duplicate-count:
     get:
-      tags: [Core — Monitoring]
+      tags: [Monitoring]
       summary: Получить общее количество дубликатов
       operationId: getDuplicateCount
       responses:
@@ -190,7 +166,7 @@ paths:
 
   /get-timeout-count:
     get:
-      tags: [Core — Monitoring]
+      tags: [Monitoring]
       summary: Получить количество таймаутов
       operationId: getTimeoutCount
       responses:
@@ -209,13 +185,13 @@ paths:
 
   /get-audit-activity:
     get:
-      tags: [Core — Monitoring]
+      tags: [Monitoring]
       summary: Получить аудит активности по интеграциям
       operationId: getAuditActivity
       parameters:
         - name: since
           in: query
-          description: Начиная с даты (ISO 8601)
+          description: Начиная с даты (ISO 8601, например 2024-01-01T00:00:00Z)
           schema:
             type: string
             format: date-time
@@ -227,6 +203,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiResponseAuditActivity'
+              example:
+                success: true
+                data:
+                  PAYMENT_SERVICE: 150
+                  NOTIFICATION_SERVICE: 43
+                error: null
         '500':
           $ref: '#/components/responses/InternalError'
 
@@ -234,7 +216,7 @@ paths:
 
   /config:
     get:
-      tags: [Core — Configuration]
+      tags: [Configuration]
       summary: Получить полную конфигурацию сервиса
       operationId: getConfig
       responses:
@@ -249,7 +231,7 @@ paths:
 
   /config/scheduler:
     put:
-      tags: [Core — Configuration]
+      tags: [Configuration]
       summary: Обновить конфигурацию шедулера
       operationId: updateScheduler
       requestBody:
@@ -258,6 +240,12 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SchedulerConfig'
+            example:
+              outboxFixedDelaySeconds: 5
+              deliveryFixedDelaySeconds: 10
+              replyTimeoutFixedDelaySeconds: 30
+              cleanupFixedDelaySeconds: 3600
+              batchSize: 100
       responses:
         '200':
           description: Конфигурация обновлена
@@ -272,7 +260,7 @@ paths:
 
   /config/resilience:
     put:
-      tags: [Core — Configuration]
+      tags: [Configuration]
       summary: Обновить конфигурацию устойчивости
       operationId: updateResilience
       requestBody:
@@ -281,6 +269,12 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ResilienceConfig'
+            example:
+              outboxRetryDelaySeconds: 30
+              deliveryRetryDelaySeconds: 60
+              replyTimeoutSeconds: 300
+              leaseDurationSeconds: 30
+              maxAttempts: 3
       responses:
         '200':
           description: Конфигурация обновлена
@@ -295,7 +289,7 @@ paths:
 
   /config/cleanup:
     put:
-      tags: [Core — Configuration]
+      tags: [Configuration]
       summary: Обновить конфигурацию очистки
       operationId: updateCleanup
       requestBody:
@@ -304,6 +298,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CleanupConfig'
+            example:
+              retentionSeconds: 604800
+              batchSize: 500
       responses:
         '200':
           description: Конфигурация обновлена
@@ -318,7 +315,7 @@ paths:
 
   /config/listener:
     put:
-      tags: [Core — Configuration]
+      tags: [Configuration]
       summary: Обновить конфигурацию слушателя
       operationId: updateListener
       requestBody:
@@ -327,6 +324,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ListenerConfig'
+            example:
+              inboundConcurrency: 10
+              replyConcurrency: 5
       responses:
         '200':
           description: Конфигурация обновлена
@@ -341,7 +341,7 @@ paths:
 
   /config/integrations:
     get:
-      tags: [Core — Configuration]
+      tags: [Configuration]
       summary: Получить список всех интеграций
       operationId: getIntegrations
       responses:
@@ -356,7 +356,7 @@ paths:
 
   /config/integrations/enabled:
     get:
-      tags: [Core — Configuration]
+      tags: [Configuration]
       summary: Получить список включённых интеграций
       operationId: getEnabledIntegrations
       responses:
@@ -369,259 +369,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  # ═══════════════════════════════════════════════════════════════════════════════
-  # Sender Simulator (порт 8081)
-  # ═══════════════════════════════════════════════════════════════════════════════
-
-  /api/sender/send:
-    post:
-      tags: [Sender — Send Events]
-      summary: Отправить событие
-      description: Отправляет событие в систему. Можно указать количество дублей для тестирования идемпотентности.
-      operationId: sendEvent
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SendEventRequest'
-      responses:
-        '200':
-          description: Событие отправлено, возвращается uid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseString'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /api/sender/sent:
-    get:
-      tags: [Sender — Monitoring]
-      summary: Получить все отправленные сообщения
-      operationId: getSentMessages
-      parameters:
-        - name: since
-          in: query
-          description: Фильтр по дате (ISO 8601)
-          schema:
-            type: string
-            format: date-time
-      responses:
-        '200':
-          description: Список отправленных сообщений
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseAny'
-
-  /api/sender/replies:
-    get:
-      tags: [Sender — Monitoring]
-      summary: Получить все полученные ответы
-      operationId: getReplies
-      responses:
-        '200':
-          description: Список полученных ответов
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseAny'
-
-  /api/sender/stats:
-    get:
-      tags: [Sender — Monitoring]
-      summary: Получить статистику отправленных сообщений
-      operationId: getSenderStats
-      parameters:
-        - name: since
-          in: query
-          description: Фильтр по дате (ISO 8601)
-          schema:
-            type: string
-            format: date-time
-      responses:
-        '200':
-          description: Статистика по отправленным сообщениям
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseAny'
-
-  /api/sender/config:
-    get:
-      tags: [Sender — Simulation Config]
-      summary: Получить конфигурацию симуляции автоматической отправки
-      operationId: getSimulationConfig
-      responses:
-        '200':
-          description: Текущая конфигурация симуляции
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseSimulationConfigResponse'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-    put:
-      tags: [Sender — Simulation Config]
-      summary: Обновить конфигурацию симуляции автоматической отправки
-      operationId: updateSimulationConfig
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SimulationConfigRequest'
-      responses:
-        '200':
-          description: Конфигурация обновлена
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseString'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /api/sender/state:
-    delete:
-      tags: [Sender — State Management]
-      summary: Сбросить состояние отправителя
-      description: Очищает все отправленные сообщения, полученные ответы и статистику.
-      operationId: resetSenderState
-      responses:
-        '200':
-          description: Состояние сброшено
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseString'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  # ═══════════════════════════════════════════════════════════════════════════════
-  # Receiver Simulator (порт 8082)
-  # ═══════════════════════════════════════════════════════════════════════════════
-
-  /api/receiver/events:
-    get:
-      tags: [Receiver — Events]
-      summary: Получить все полученные события
-      operationId: getReceivedEvents
-      parameters:
-        - name: since
-          in: query
-          description: Фильтр по дате (ISO 8601)
-          schema:
-            type: string
-            format: date-time
-      responses:
-        '200':
-          description: Список полученных событий
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseAny'
-
-  /api/receiver/stats:
-    get:
-      tags: [Receiver — Events]
-      summary: Получить статистику по полученным событиям
-      operationId: getReceiverStats
-      parameters:
-        - name: since
-          in: query
-          description: Фильтр по дате (ISO 8601)
-          schema:
-            type: string
-            format: date-time
-      responses:
-        '200':
-          description: Статистика по событиям
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseAny'
-
-  /api/receiver/mode:
-    post:
-      tags: [Receiver — Mode]
-      summary: Установить режим работы ресивера
-      description: |
-        Переключает режим автоматической обработки входящих событий.
-
-        | Режим | Описание |
-        |-------|----------|
-        | `AUTO_SUCCESS` | Автоматически отвечает успехом |
-        | `AUTO_FAIL_RESEND` | Автоматически отвечает ошибкой с запросом повтора |
-        | `AUTO_FAIL_NO_RESEND` | Автоматически отвечает ошибкой без повтора |
-        | `MANUAL` | Ожидает ручного ответа через `/api/receiver/reply` |
-      operationId: setReceiverMode
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ModeRequest'
-      responses:
-        '200':
-          description: Режим установлен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseString'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /api/receiver/reply:
-    post:
-      tags: [Receiver — Manual Reply]
-      summary: Отправить ручной ответ на событие
-      description: Используется когда ресивер работает в режиме `MANUAL`.
-      operationId: sendManualReply
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ManualReplyRequest'
-      responses:
-        '200':
-          description: Ответ отправлен
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseString'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /api/receiver/state:
-    delete:
-      tags: [Receiver — State Management]
-      summary: Сбросить состояние ресивера
-      description: Очищает все принятые события, статистику и сбрасывает режимы.
-      operationId: resetReceiverState
-      responses:
-        '200':
-          description: Состояние сброшено
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ApiResponseString'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Components (схемы для всех сервисов)
-# ═══════════════════════════════════════════════════════════════════════════════
+# ─── Components ────────────────────────────────────────────────────────────────
 
 components:
 
@@ -649,17 +397,6 @@ components:
         data:
           type: integer
           format: int64
-          nullable: true
-        error:
-          $ref: '#/components/schemas/ApiError'
-          nullable: true
-
-    ApiResponseAny:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
           nullable: true
         error:
           $ref: '#/components/schemas/ApiError'
@@ -732,17 +469,7 @@ components:
           additionalProperties:
             type: integer
             format: int64
-        error:
-          $ref: '#/components/schemas/ApiError'
-          nullable: true
-
-    ApiResponseSimulationConfigResponse:
-      type: object
-      properties:
-        success:
-          type: boolean
-        data:
-          $ref: '#/components/schemas/SimulationConfigResponse'
+          description: "Map интеграция -> количество"
         error:
           $ref: '#/components/schemas/ApiError'
           nullable: true
@@ -752,17 +479,22 @@ components:
       properties:
         errorUid:
           type: string
+          description: Уникальный идентификатор ошибки
         title:
           type: string
+          description: Заголовок ошибки
         code:
           type: string
+          description: Код ошибки
         text:
           type: string
+          description: Текст ошибки
 
-    # ── Core Domain ─────────────────────────────────────────────────────────────
+    # ── Domain: Error Events ────────────────────────────────────────────────────
 
     ErrorEventPage:
       type: object
+      description: Страница с событиями в статусе ошибки
       properties:
         content:
           type: array
@@ -783,12 +515,18 @@ components:
       properties:
         globalKey:
           type: string
+          description: Уникальный ключ события
         status:
           type: string
+          description: Статус события
         service:
           type: string
+          description: Сервис-источник
         integration:
           type: string
+          description: Тип интеграции
+
+    # ── Domain: Event Details ───────────────────────────────────────────────────
 
     EventDetails:
       type: object
@@ -797,6 +535,7 @@ components:
           type: string
         sourceUid:
           type: string
+          description: Uid события на стороне отправителя
         service:
           type: string
         integration:
@@ -814,13 +553,18 @@ components:
           format: date-time
         payload:
           type: object
+          description: Тело события (произвольный JSON)
           nullable: true
         headers:
           type: object
+          description: Заголовки события (произвольный JSON)
           nullable: true
+
+    # ── Domain: Duplicate Events ────────────────────────────────────────────────
 
     DuplicateEventPage:
       type: object
+      description: Страница с дубликатами событий
       properties:
         content:
           type: array
@@ -847,95 +591,115 @@ components:
           type: string
         reason:
           type: string
+          description: Причина дублирования
         createDate:
           type: string
           format: date-time
 
-    # ── Core Configuration ──────────────────────────────────────────────────────
+    # ── Configuration DTOs ──────────────────────────────────────────────────────
 
     SchedulerConfig:
       type: object
+      description: Конфигурация шедулера
       properties:
         outboxFixedDelaySeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Задержка между отправками исходящих сообщений (сек)
           nullable: true
         deliveryFixedDelaySeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Задержка между доставками сообщений (сек)
           nullable: true
         replyTimeoutFixedDelaySeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Задержка проверки таймаутов ответов (сек)
           nullable: true
         cleanupFixedDelaySeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Задержка между очистками устаревших событий (сек)
           nullable: true
         batchSize:
           type: integer
           minimum: 1
+          description: Размер пакета для обработки
           nullable: true
 
     ListenerConfig:
       type: object
+      description: Конфигурация слушателя
       properties:
         inboundConcurrency:
           type: integer
           minimum: 1
+          description: Количество конкурентных обработчиков входящих сообщений
           nullable: true
         replyConcurrency:
           type: integer
           minimum: 1
+          description: Количество конкурентных обработчиков ответов
           nullable: true
 
     ResilienceConfig:
       type: object
+      description: Конфигурация устойчивости (retry, timeout)
       properties:
         outboxRetryDelaySeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Задержка перед повтором отправки (сек)
           nullable: true
         deliveryRetryDelaySeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Задержка перед повтором доставки (сек)
           nullable: true
         replyTimeoutSeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Таймаут ожидания ответа (сек)
           nullable: true
         leaseDurationSeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Длительность аренды блокировки (сек)
           nullable: true
         maxAttempts:
           type: integer
           minimum: 1
+          description: Максимальное количество попыток
           nullable: true
 
     CleanupConfig:
       type: object
+      description: Конфигурация очистки устаревших событий
       properties:
         retentionSeconds:
           type: integer
           format: int64
           minimum: 1
+          description: Время хранения событий (сек)
           nullable: true
         batchSize:
           type: integer
           minimum: 1
+          description: Размер пакета для очистки
           nullable: true
 
     FullConfig:
       type: object
+      description: Полная конфигурация сервиса
       properties:
         scheduler:
           $ref: '#/components/schemas/SchedulerConfig'
@@ -946,13 +710,18 @@ components:
         cleanup:
           $ref: '#/components/schemas/CleanupConfig'
 
+    # ── Integration Info ────────────────────────────────────────────────────────
+
     IntegrationInfo:
       type: object
+      description: Информация об интеграции
       properties:
         integrationName:
           type: string
+          description: Название интеграции
         serviceName:
           type: string
+          description: Название сервиса
         inbound:
           $ref: '#/components/schemas/ChannelInfo'
           nullable: true
@@ -967,123 +736,33 @@ components:
           nullable: true
         idempotencyEnabled:
           type: boolean
+          description: Включена ли идемпотентность
 
     ChannelInfo:
       type: object
+      description: Информация о Kafka канале
       properties:
         bootstrapServers:
           type: string
+          description: Bootstrap серверы Kafka
         topic:
           type: string
+          description: Название топика
         group:
           type: string
+          description: Группа потребителей
           nullable: true
         partitions:
           type: integer
+          description: Количество партиций
           nullable: true
         replicationFactor:
           type: integer
           format: int16
+          description: Фактор репликации
           nullable: true
 
-    # ── Sender Requests ─────────────────────────────────────────────────────────
-
-    SendEventRequest:
-      type: object
-      required: [integration, duplicates]
-      properties:
-        integration:
-          type: string
-        uid:
-          type: string
-          nullable: true
-        headers:
-          type: object
-          additionalProperties: true
-          nullable: true
-        payload:
-          type: object
-          nullable: true
-        duplicates:
-          type: integer
-          minimum: 1
-
-    SimulationConfigRequest:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-          nullable: true
-        integration:
-          type: string
-          nullable: true
-        intervalSeconds:
-          type: integer
-          format: int64
-          minimum: 1
-          nullable: true
-        duplicateEvery:
-          type: integer
-          minimum: 1
-          nullable: true
-        burstSize:
-          type: integer
-          minimum: 1
-          nullable: true
-        pauseSeconds:
-          type: integer
-          format: int64
-          minimum: 0
-          nullable: true
-
-    SimulationConfigResponse:
-      type: object
-      properties:
-        enabled:
-          type: boolean
-        integration:
-          type: string
-        intervalSeconds:
-          type: integer
-          format: int64
-        duplicateEvery:
-          type: integer
-        burstSize:
-          type: integer
-        pauseSeconds:
-          type: integer
-          format: int64
-
-    # ── Receiver Requests ───────────────────────────────────────────────────────
-
-    ModeRequest:
-      type: object
-      required: [integration, mode]
-      properties:
-        integration:
-          type: string
-        mode:
-          type: string
-          enum: [AUTO_SUCCESS, AUTO_FAIL_RESEND, AUTO_FAIL_NO_RESEND, MANUAL]
-
-    ManualReplyRequest:
-      type: object
-      required: [integration, globalKey, result]
-      properties:
-        integration:
-          type: string
-        globalKey:
-          type: string
-        result:
-          type: string
-        needResend:
-          type: boolean
-          default: false
-        resultDescription:
-          type: string
-          nullable: true
-
-    # ── Core Requests ───────────────────────────────────────────────────────────
+    # ── Requests ────────────────────────────────────────────────────────────────
 
     RestartEventRequest:
       type: object
@@ -1091,6 +770,7 @@ components:
       properties:
         globalKey:
           type: string
+          description: Глобальный ключ события для перезапуска
 
   responses:
     BadRequest:
@@ -1099,6 +779,14 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Ошибка валидации"
+              code: "VALIDATION_ERROR"
+              text: "Поле globalKey не может быть пустым"
 
     InternalError:
       description: Внутренняя ошибка сервера
@@ -1106,3 +794,11 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Техническая ошибка"
+              code: "TECHNICAL_ERROR_99"
+              text: "Непредвиденная ошибка сервера"

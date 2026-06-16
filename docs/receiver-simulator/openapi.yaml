@@ -1,0 +1,346 @@
+openapi: 3.0.3
+info:
+  title: Receiver Simulator API
+  description: |
+    API симулятора получателя сообщений.
+    Эмулирует внешнюю систему, которая получает события и отправляет ответы.
+    Поддерживает различные режимы работы для тестирования сценариев идемпотентности.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8082
+    description: Receiver Simulator
+
+tags:
+  - name: Events
+    description: Просмотр полученных событий и статистики
+  - name: Mode
+    description: Управление режимом работы ресивера
+  - name: Manual Reply
+    description: Ручные ответы на события (для режима MANUAL)
+  - name: State Management
+    description: Сброс состояния ресивера
+
+paths:
+
+  /api/receiver/events:
+    get:
+      tags: [Events]
+      summary: Получить все полученные события
+      operationId: getReceivedEvents
+      parameters:
+        - name: since
+          in: query
+          description: Фильтр по дате (ISO 8601, например 2024-01-01T00:00:00Z)
+          schema:
+            type: string
+            format: date-time
+          example: "2024-01-01T00:00:00Z"
+      responses:
+        '200':
+          description: Список полученных событий
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+              example:
+                success: true
+                data: []
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/receiver/stats:
+    get:
+      tags: [Events]
+      summary: Получить статистику по полученным событиям
+      operationId: getReceiverStats
+      parameters:
+        - name: since
+          in: query
+          description: Фильтр по дате (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2024-01-01T00:00:00Z"
+      responses:
+        '200':
+          description: Статистика по событиям (количество по статусам и интеграциям)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+              example:
+                success: true
+                data:
+                  total: 150
+                  byIntegration:
+                    PAYMENT_SERVICE: 100
+                    NOTIFICATION_SERVICE: 50
+                  byStatus:
+                    SUCCESS: 120
+                    FAILURE: 30
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/receiver/mode:
+    post:
+      tags: [Mode]
+      summary: Установить режим работы ресивера для интеграции
+      description: |
+        Переключает режим автоматической обработки входящих событий.
+
+        | Режим | Описание |
+        |-------|----------|
+        | `AUTO_SUCCESS` | Автоматически отвечает успехом |
+        | `AUTO_FAIL_RESEND` | Автоматически отвечает ошибкой с запросом повтора |
+        | `AUTO_FAIL_NO_RESEND` | Автоматически отвечает ошибкой без повтора |
+        | `MANUAL` | Ожидает ручного ответа через `/api/receiver/reply` |
+      operationId: setReceiverMode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModeRequest'
+            examples:
+              autoSuccess:
+                summary: Автоуспех
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  mode: "AUTO_SUCCESS"
+              autoFailResend:
+                summary: Автоошибка с повтором
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  mode: "AUTO_FAIL_RESEND"
+              autoFailNoResend:
+                summary: Автоошибка без повтора
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  mode: "AUTO_FAIL_NO_RESEND"
+              manual:
+                summary: Ручной режим
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  mode: "MANUAL"
+      responses:
+        '200':
+          description: Режим установлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/receiver/reply:
+    post:
+      tags: [Manual Reply]
+      summary: Отправить ручной ответ на событие
+      description: Используется когда ресивер работает в режиме `MANUAL` для конкретной интеграции.
+      operationId: sendManualReply
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualReplyRequest'
+            examples:
+              success:
+                summary: Успешный ответ
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  globalKey: "550e8400-e29b-41d4-a716-446655440000"
+                  result: "SUCCESS"
+                  needResend: false
+                  resultDescription: "Платёж проведён успешно"
+              failureWithResend:
+                summary: Ошибка с повтором
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  globalKey: "550e8400-e29b-41d4-a716-446655440000"
+                  result: "FAILURE"
+                  needResend: true
+                  resultDescription: "Временная ошибка БД, повторите"
+              failureWithoutResend:
+                summary: Ошибка без повтора
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  globalKey: "550e8400-e29b-41d4-a716-446655440000"
+                  result: "FAILURE"
+                  needResend: false
+                  resultDescription: "Невалидный запрос"
+      responses:
+        '200':
+          description: Ответ отправлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/receiver/state:
+    delete:
+      tags: [State Management]
+      summary: Сбросить состояние ресивера
+      description: Очищает все принятые события, статистику и сбрасывает режимы на значения по умолчанию.
+      operationId: resetReceiverState
+      responses:
+        '200':
+          description: Состояние сброшено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+# ─── Components ────────────────────────────────────────────────────────────────
+
+components:
+
+  schemas:
+
+    # ── Wrappers ────────────────────────────────────────────────────────────────
+
+    ApiResponseString:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: string
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiResponseAny:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          description: Может быть списком событий, статистикой или любым другим объектом
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiError:
+      type: object
+      properties:
+        errorUid:
+          type: string
+          description: Уникальный идентификатор ошибки
+        title:
+          type: string
+          description: Заголовок ошибки
+        code:
+          type: string
+          description: Код ошибки
+          example: "TECHNICAL_ERROR_99"
+        text:
+          type: string
+          description: Текст ошибки
+
+    # ── Requests ────────────────────────────────────────────────────────────────
+
+    ModeRequest:
+      type: object
+      required:
+        - integration
+        - mode
+      properties:
+        integration:
+          type: string
+          description: Тип интеграции (например, PAYMENT_SERVICE)
+          example: "PAYMENT_SERVICE"
+        mode:
+          type: string
+          description: Режим обработки входящих событий
+          enum:
+            - AUTO_SUCCESS
+            - AUTO_FAIL_RESEND
+            - AUTO_FAIL_NO_RESEND
+            - MANUAL
+          example: "AUTO_SUCCESS"
+
+    ManualReplyRequest:
+      type: object
+      required:
+        - integration
+        - globalKey
+        - result
+      properties:
+        integration:
+          type: string
+          description: Тип интеграции
+          example: "PAYMENT_SERVICE"
+        globalKey:
+          type: string
+          description: Глобальный ключ события, на которое отвечаем
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        result:
+          type: string
+          description: Результат обработки
+          example: "SUCCESS"
+        needResend:
+          type: boolean
+          default: false
+          description: Нужен ли повтор (актуально при ошибке)
+        resultDescription:
+          type: string
+          nullable: true
+          description: Текстовое описание результата
+          example: "Платёж проведён успешно"
+
+  responses:
+    BadRequest:
+      description: Некорректный запрос (ошибка валидации)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Ошибка валидации"
+              code: "VALIDATION_ERROR"
+              text: "Поле integration не может быть пустым"
+
+    InternalError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Техническая ошибка"
+              code: "TECHNICAL_ERROR_99"
+              text: "Непредвиденная ошибка сервера"

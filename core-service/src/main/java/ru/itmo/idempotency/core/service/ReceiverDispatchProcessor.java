@@ -88,6 +88,16 @@ public class ReceiverDispatchProcessor {
             }
 
             try {
+                if (snapshot.replyOut() != null) {
+                    IdempotencyService.AsyncReplyTransitionResult transitionResult =
+                            idempotencyService.markClaimedWaitingForAsyncReply(entity.getGlobalKey(), ownerId);
+                    if (transitionResult == IdempotencyService.AsyncReplyTransitionResult.OWNERSHIP_LOST) {
+                        log.warn("Lost ownership of {} before preparing async reply wait state", entity.getGlobalKey());
+                        coreMetrics.recordDeliveryOwnershipLost(snapshot.integration());
+                        return true;
+                    }
+                }
+
                 kafkaJsonProducerRegistry.send(
                         snapshot.replyIn().bootstrapServers(),
                         snapshot.replyIn().topic(),
@@ -104,10 +114,15 @@ public class ReceiverDispatchProcessor {
                         coreMetrics.recordDeliverySuccess(snapshot.integration(), duration);
                     }
                 } else {
-                    if (!idempotencyService.completeClaimedDelivery(entity.getGlobalKey(), ownerId, IdempotencyStatus.WAITING_ASYNC_RESPONSE, null)) {
+                    IdempotencyService.AsyncReplyTransitionResult transitionResult =
+                            idempotencyService.releaseClaimedAsyncReplyWait(entity.getGlobalKey(), ownerId);
+                    if (transitionResult == IdempotencyService.AsyncReplyTransitionResult.OWNERSHIP_LOST) {
                         log.warn("Lost ownership of {} before waiting async reply", entity.getGlobalKey());
                         coreMetrics.recordDeliveryOwnershipLost(snapshot.integration());
                     } else {
+                        if (transitionResult == IdempotencyService.AsyncReplyTransitionResult.ALREADY_RELEASED) {
+                            log.debug("Async reply for {} was processed before local transition to waiting state", entity.getGlobalKey());
+                        }
                         coreMetrics.recordDeliverySuccess(snapshot.integration(), duration);
                     }
                 }

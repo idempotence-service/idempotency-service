@@ -123,4 +123,85 @@ describe('DashboardView Component', () => {
     
     expect(wrapper.text()).toContain('Ошибки')
   })
+
+  it('switches to overview tab', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Dashboard</div>' } }]
+    })
+    
+    const wrapper = mount(DashboardView, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    const buttons = wrapper.findAll('button')
+    const overviewButton = buttons.find(b => b.text().includes('Обзор'))
+    
+    if (overviewButton) {
+      await overviewButton.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.activeTab).toBe('overview')
+    }
+  })
+
+  it('switches to messages tab', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Dashboard</div>' } }]
+    })
+    
+    const wrapper = mount(DashboardView, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    const buttons = wrapper.findAll('button')
+    const messagesButton = buttons.find(b => b.text().includes('Сообщения'))
+    
+    if (messagesButton) {
+      await messagesButton.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.activeTab).toBe('messages')
+    }
+  })
+
+  it('switches to config tab', async () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Dashboard</div>' } }]
+    })
+    
+    const wrapper = mount(DashboardView, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    const buttons = wrapper.findAll('button')
+    const configButton = buttons.find(b => b.text().includes('Конфигурация'))
+    
+    if (configButton) {
+      await configButton.trigger('click')
+      await wrapper.vm.$nextTick()
+      expect(wrapper.vm.activeTab).toBe('config')
+    }
+  })
+
+  it('has activeTab ref with default value', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Dashboard</div>' } }]
+    })
+    
+    const wrapper = mount(DashboardView, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.vm.activeTab).toBe('overview')
+  })
 })

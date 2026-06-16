@@ -63,4 +63,81 @@ describe('ReceiverTab Component', () => {
     
     expect(wrapper.text()).toBeDefined()
   })
+
+  it('has mode setting section', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Receiver</div>' } }]
+    })
+    
+    const wrapper = mount(ReceiverTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.text()).toContain('Режим обработки')
+  })
+
+  it('has manual reply section', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Receiver</div>' } }]
+    })
+    
+    const wrapper = mount(ReceiverTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.text()).toContain('Ручной ответ')
+  })
+
+  it('has received events section', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Receiver</div>' } }]
+    })
+    
+    const wrapper = mount(ReceiverTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.text()).toContain('Принятые события')
+  })
+
+  it('has input fields for mode setting', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Receiver</div>' } }]
+    })
+    
+    const wrapper = mount(ReceiverTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    const inputs = wrapper.findAll('input')
+    expect(inputs.length).toBeGreaterThan(0)
+  })
+
+  it('has select for mode', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Receiver</div>' } }]
+    })
+    
+    const wrapper = mount(ReceiverTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    const selects = wrapper.findAll('select')
+    expect(selects.length).toBeGreaterThan(0)
+  })
 })

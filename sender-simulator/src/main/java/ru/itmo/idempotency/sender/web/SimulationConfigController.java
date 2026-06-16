@@ -27,10 +27,10 @@ public class SimulationConfigController {
         return ApiResponse.success(new SimulationConfigDtos.SimulationConfigResponse(
             sim.isEnabled(),
             sim.getIntegration(),
-            sim.getInterval().getSeconds(),
+            toSeconds(sim.getInterval()),
             sim.getDuplicateEvery(),
             sim.getBurstSize(),
-            sim.getPause().getSeconds()
+            toSeconds(sim.getPause())
         ));
     }
 
@@ -39,10 +39,18 @@ public class SimulationConfigController {
         SenderProperties.Simulation sim = senderProperties.getSimulation();
         if (req.enabled() != null) sim.setEnabled(req.enabled());
         if (req.integration() != null && !req.integration().isBlank()) sim.setIntegration(req.integration());
-        if (req.intervalSeconds() != null) sim.setInterval(Duration.ofSeconds(req.intervalSeconds()));
+        if (req.intervalSeconds() != null) sim.setInterval(toDuration(req.intervalSeconds()));
         if (req.duplicateEvery() != null) sim.setDuplicateEvery(req.duplicateEvery());
         if (req.burstSize() != null) sim.setBurstSize(req.burstSize());
-        if (req.pauseSeconds() != null) sim.setPause(Duration.ofSeconds(req.pauseSeconds()));
+        if (req.pauseSeconds() != null) sim.setPause(toDuration(req.pauseSeconds()));
         return ApiResponse.success("ok");
+    }
+
+    private double toSeconds(Duration duration) {
+        return duration.toMillis() / 1000.0;
+    }
+
+    private Duration toDuration(double seconds) {
+        return Duration.ofMillis(Math.round(seconds * 1000.0));
     }
 }

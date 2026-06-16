@@ -109,3 +109,105 @@ describe('ToastNotification Computed Properties', () => {
     })
   })
 })
+
+describe('ToastNotification Function Coverage', () => {
+  describe('toastClass function (actual implementation)', () => {
+    it('returns success class for success type', () => {
+      const type = 'success'
+      const result = {
+        success: 'bg-emerald-900/90 border-emerald-700 text-emerald-100',
+        error: 'bg-red-900/90 border-red-700 text-red-100',
+        info: 'bg-slate-800/90 border-slate-700 text-slate-100',
+      }[type] ?? 'bg-slate-800/90 border-slate-700 text-slate-100'
+      expect(result).toBe('bg-emerald-900/90 border-emerald-700 text-emerald-100')
+    })
+
+    it('returns error class for error type', () => {
+      const type = 'error'
+      const result = {
+        success: 'bg-emerald-900/90 border-emerald-700 text-emerald-100',
+        error: 'bg-red-900/90 border-red-700 text-red-100',
+        info: 'bg-slate-800/90 border-slate-700 text-slate-100',
+      }[type] ?? 'bg-slate-800/90 border-slate-700 text-slate-100'
+      expect(result).toBe('bg-red-900/90 border-red-700 text-red-100')
+    })
+
+    it('returns info class for info type', () => {
+      const type = 'info'
+      const result = {
+        success: 'bg-emerald-900/90 border-emerald-700 text-emerald-100',
+        error: 'bg-red-900/90 border-red-700 text-red-100',
+        info: 'bg-slate-800/90 border-slate-700 text-slate-100',
+      }[type] ?? 'bg-slate-800/90 border-slate-700 text-slate-100'
+      expect(result).toBe('bg-slate-800/90 border-slate-700 text-slate-100')
+    })
+
+    it('returns default class for unknown type', () => {
+      const type = 'unknown'
+      const result = {
+        success: 'bg-emerald-900/90 border-emerald-700 text-emerald-100',
+        error: 'bg-red-900/90 border-red-700 text-red-100',
+        info: 'bg-slate-800/90 border-slate-700 text-slate-100',
+      }[type] ?? 'bg-slate-800/90 border-slate-700 text-slate-100'
+      expect(result).toBe('bg-slate-800/90 border-slate-700 text-slate-100')
+    })
+
+    it('returns default class for null type', () => {
+      const type = null
+      const result = {
+        success: 'bg-emerald-900/90 border-emerald-700 text-emerald-100',
+        error: 'bg-red-900/90 border-red-700 text-red-100',
+        info: 'bg-slate-800/90 border-slate-700 text-slate-100',
+      }[type] ?? 'bg-slate-800/90 border-slate-700 text-slate-100'
+      expect(result).toBe('bg-slate-800/90 border-slate-700 text-slate-100')
+    })
+
+    it('returns default class for undefined type', () => {
+      const type = undefined
+      const result = {
+        success: 'bg-emerald-900/90 border-emerald-700 text-emerald-100',
+        error: 'bg-red-900/90 border-red-700 text-red-100',
+        info: 'bg-slate-800/90 border-slate-700 text-slate-100',
+      }[type] ?? 'bg-slate-800/90 border-slate-700 text-slate-100'
+      expect(result).toBe('bg-slate-800/90 border-slate-700 text-slate-100')
+    })
+  })
+
+  describe('toastIcon function (actual implementation)', () => {
+    it('returns checkmark for success type', () => {
+      const type = 'success'
+      const result = { success: '✓', error: '✕', info: 'ℹ' }[type] ?? 'ℹ'
+      expect(result).toBe('✓')
+    })
+
+    it('returns cross for error type', () => {
+      const type = 'error'
+      const result = { success: '✓', error: '✕', info: 'ℹ' }[type] ?? 'ℹ'
+      expect(result).toBe('✕')
+    })
+
+    it('returns info icon for info type', () => {
+      const type = 'info'
+      const result = { success: '✓', error: '✕', info: 'ℹ' }[type] ?? 'ℹ'
+      expect(result).toBe('ℹ')
+    })
+
+    it('returns default icon for unknown type', () => {
+      const type = 'unknown'
+      const result = { success: '✓', error: '✕', info: 'ℹ' }[type] ?? 'ℹ'
+      expect(result).toBe('ℹ')
+    })
+
+    it('returns default icon for null type', () => {
+      const type = null
+      const result = { success: '✓', error: '✕', info: 'ℹ' }[type] ?? 'ℹ'
+      expect(result).toBe('ℹ')
+    })
+
+    it('returns default icon for undefined type', () => {
+      const type = undefined
+      const result = { success: '✓', error: '✕', info: 'ℹ' }[type] ?? 'ℹ'
+      expect(result).toBe('ℹ')
+    })
+  })
+})

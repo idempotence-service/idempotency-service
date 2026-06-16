@@ -32,7 +32,7 @@
           </div>
           <div>
             <h3 class="font-semibold text-sm" style="color:var(--md-on-surface)">Планировщик</h3>
-            <p class="text-xs" style="color:var(--md-on-surface-v)">Интервалы фоновых задач · изменения применяются со следующего цикла</p>
+            <p class="text-xs" style="color:var(--md-on-surface-v)">Интервалы и рабочая пачка outbox/delivery/reply-timeout · параметры cleanup настраиваются ниже</p>
           </div>
         </div>
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
@@ -49,12 +49,9 @@
             <input v-model.number="scheduler.replyTimeoutFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
-            <label class="label">Cleanup delay (сек)</label>
-            <input v-model.number="scheduler.cleanupFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
-          </div>
-          <div>
-            <label class="label">Batch size</label>
+            <label class="label">Batch size обработчиков</label>
             <input v-model.number="scheduler.batchSize" type="number" min="1" class="input" />
+            <p class="text-xs mt-1" style="color:var(--md-on-surface-v)">Сколько записей за один проход берут delivery, outbox и reply-timeout</p>
           </div>
         </div>
         <div class="flex justify-end">
@@ -116,18 +113,24 @@
           </div>
           <div>
             <h3 class="font-semibold text-sm" style="color:var(--md-on-surface)">Очистка</h3>
-            <p class="text-xs" style="color:var(--md-on-surface-v)">Удаление завершённых записей · применяется к следующему запуску cleanup</p>
+            <p class="text-xs" style="color:var(--md-on-surface-v)">Частота запуска и параметры удаления завершённых записей · применяются к следующему запуску cleanup</p>
           </div>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
+          <div>
+            <label class="label">Интервал запуска cleanup (сек)</label>
+            <input v-model.number="cleanup.runIntervalSeconds" type="number" min="0.001" step="0.001" class="input" />
+            <p class="text-xs mt-1" style="color:var(--md-on-surface-v)">{{ formatDuration(cleanup.runIntervalSeconds) }}</p>
+          </div>
           <div>
             <label class="label">Retention (сек)</label>
             <input v-model.number="cleanup.retentionSeconds" type="number" min="1" class="input" />
             <p class="text-xs mt-1" style="color:var(--md-on-surface-v)">{{ formatDuration(cleanup.retentionSeconds) }}</p>
           </div>
           <div>
-            <label class="label">Batch size</label>
+            <label class="label">Batch size очистки</label>
             <input v-model.number="cleanup.batchSize" type="number" min="1" class="input" />
+            <p class="text-xs mt-1" style="color:var(--md-on-surface-v)">Сколько завершённых записей cleanup удаляет за одну транзакцию</p>
           </div>
         </div>
         <div class="flex justify-end">
@@ -202,7 +205,7 @@
           </div>
           <div>
             <label class="label">Интервал (сек)</label>
-            <input v-model.number="simulation.intervalSeconds" type="number" min="1" class="input" />
+            <input v-model.number="simulation.intervalSeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Размер пачки</label>
@@ -214,7 +217,7 @@
           </div>
           <div>
             <label class="label">Пауза после пачки (сек)</label>
-            <input v-model.number="simulation.pauseSeconds" type="number" min="0" class="input" />
+            <input v-model.number="simulation.pauseSeconds" type="number" min="0" step="0.001" class="input" />
           </div>
         </div>
         <div class="flex justify-end">
@@ -233,6 +236,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { coreApi } from '../api/core.js'
 import { senderApi } from '../api/sender.js'
 import { useToastStore } from '../stores/toast.js'
+import { formatDuration } from '../utils/configHelpers.js'
 
 const toast = useToastStore()
 const loading = ref(false)
@@ -250,7 +254,6 @@ const scheduler = reactive({
   outboxFixedDelaySeconds: 5,
   deliveryFixedDelaySeconds: 5,
   replyTimeoutFixedDelaySeconds: 15,
-  cleanupFixedDelaySeconds: 86400,
   batchSize: 100,
 })
 
@@ -263,6 +266,7 @@ const resilience = reactive({
 })
 
 const cleanup = reactive({
+  runIntervalSeconds: 86400,
   retentionSeconds: 604800,
   batchSize: 500,
 })
@@ -291,10 +295,19 @@ async function loadAll() {
     ])
 
     const cfg = coreRes.data.data
-    Object.assign(scheduler, cfg.scheduler)
+    Object.assign(scheduler, {
+      outboxFixedDelaySeconds: cfg.scheduler.outboxFixedDelaySeconds,
+      deliveryFixedDelaySeconds: cfg.scheduler.deliveryFixedDelaySeconds,
+      replyTimeoutFixedDelaySeconds: cfg.scheduler.replyTimeoutFixedDelaySeconds,
+      batchSize: cfg.scheduler.batchSize,
+    })
     Object.assign(listener, cfg.listener)
     Object.assign(resilience, cfg.resilience)
-    Object.assign(cleanup, cfg.cleanup)
+    Object.assign(cleanup, {
+      runIntervalSeconds: cfg.scheduler.cleanupFixedDelaySeconds,
+      retentionSeconds: cfg.cleanup.retentionSeconds,
+      batchSize: cfg.cleanup.batchSize,
+    })
 
     const sim = simRes.data.data
     Object.assign(simulation, sim)
@@ -310,7 +323,12 @@ async function loadAll() {
 async function saveScheduler() {
   saving.scheduler = true
   try {
-    await coreApi.updateScheduler({ ...scheduler })
+    await coreApi.updateScheduler({
+      outboxFixedDelaySeconds: scheduler.outboxFixedDelaySeconds,
+      deliveryFixedDelaySeconds: scheduler.deliveryFixedDelaySeconds,
+      replyTimeoutFixedDelaySeconds: scheduler.replyTimeoutFixedDelaySeconds,
+      batchSize: scheduler.batchSize,
+    })
     toast.success('Планировщик обновлён')
   } catch {
     toast.error('Не удалось сохранить настройки планировщика')
@@ -334,9 +352,16 @@ async function saveResilience() {
 async function saveCleanup() {
   saving.cleanup = true
   try {
-    await coreApi.updateCleanup({ ...cleanup })
+    await Promise.all([
+      coreApi.updateScheduler({ cleanupFixedDelaySeconds: cleanup.runIntervalSeconds }),
+      coreApi.updateCleanup({
+        retentionSeconds: cleanup.retentionSeconds,
+        batchSize: cleanup.batchSize,
+      }),
+    ])
     toast.success('Параметры очистки обновлены')
   } catch {
+    await loadAll()
     toast.error('Не удалось сохранить параметры очистки')
   } finally {
     saving.cleanup = false
@@ -379,20 +404,6 @@ async function toggleSimulation() {
   } finally {
     saving.simulation = false
   }
-}
-
-function formatDuration(seconds) {
-  if (!seconds) return ''
-  const d = Math.floor(seconds / 86400)
-  const h = Math.floor((seconds % 86400) / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  const s = seconds % 60
-  const parts = []
-  if (d) parts.push(`${d}д`)
-  if (h) parts.push(`${h}ч`)
-  if (m) parts.push(`${m}м`)
-  if (s) parts.push(`${s}с`)
-  return parts.join(' ')
 }
 
 onMounted(loadAll)

@@ -7,3 +7,6 @@ spring:
 
 app:
   routes-file: config/routes.yaml
+  state:
+    store-history: true
+    history-limit: 1000000

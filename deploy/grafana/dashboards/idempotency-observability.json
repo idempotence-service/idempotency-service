@@ -193,6 +193,68 @@
       "fieldConfig": {
         "defaults": {
           "color": {
+            "fixedColor": "blue",
+            "mode": "fixed"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 3,
+        "x": 18,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "Prometheus"
+          },
+          "editorMode": "code",
+          "expr": "sum(idempotency_manual_review_backlog{type=\"duplicates\"})",
+          "legendFormat": "duplicates",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Дубли на ревью",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
             "mode": "thresholds"
           },
           "mappings": [],
@@ -215,11 +277,11 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 6,
-        "x": 18,
+        "w": 3,
+        "x": 21,
         "y": 0
       },
-      "id": 3,
+      "id": 10,
       "options": {
         "colorMode": "background",
         "graphMode": "area",
@@ -232,7 +294,7 @@
           "fields": "",
           "values": false
         },
-        "textMode": "value_and_name"
+        "textMode": "auto"
       },
       "targets": [
         {
@@ -241,13 +303,13 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(max by (type) (idempotency_manual_review_backlog))",
-          "legendFormat": "manual review",
+          "expr": "sum(idempotency_manual_review_backlog{type=\"timeouts\"})",
+          "legendFormat": "timeouts",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Ручная обработка backlog",
+      "title": "Таймауты на ревью",
       "type": "stat"
     },
     {

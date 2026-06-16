@@ -137,5 +137,73 @@ describe('MessagesTab Computed Properties', () => {
       expect(filtered).toHaveLength(1)
       expect(filtered[0].status).toBe('ERROR')
     })
+
+    it('handles empty messages array', () => {
+      const messages = []
+      const filtered = messages.filter(m => m.type === 'sent')
+      expect(filtered).toHaveLength(0)
+    })
+
+    it('handles null/undefined properties in filtering', () => {
+      const messages = [
+        { type: 'sent', key: null, integration: undefined },
+        { type: 'received', key: 'abc', integration: 'test' },
+      ]
+      
+      const q = 'test'
+      const filtered = messages.filter(m =>
+        m.key?.toLowerCase().includes(q) ||
+        m.integration?.toLowerCase().includes(q)
+      )
+      
+      expect(filtered).toHaveLength(1)
+    })
+  })
+
+  describe('pagination logic', () => {
+    it('calculates total pages', () => {
+      const total = 100
+      const pageSize = 10
+      const totalPages = Math.ceil(total / pageSize)
+      expect(totalPages).toBe(10)
+    })
+
+    it('calculates total pages with remainder', () => {
+      const total = 105
+      const pageSize = 10
+      const totalPages = Math.ceil(total / pageSize)
+      expect(totalPages).toBe(11)
+    })
+
+    it('handles zero total', () => {
+      const total = 0
+      const pageSize = 10
+      const totalPages = Math.ceil(total / pageSize)
+      expect(totalPages).toBe(0)
+    })
+
+    it('calculates current page items', () => {
+      const allItems = Array.from({ length: 25 }, (_, i) => ({ id: i }))
+      const page = 2
+      const pageSize = 10
+      const start = (page - 1) * pageSize
+      const end = start + pageSize
+      const pageItems = allItems.slice(start, end)
+      
+      expect(pageItems).toHaveLength(10)
+      expect(pageItems[0].id).toBe(10)
+    })
+
+    it('handles last page with fewer items', () => {
+      const allItems = Array.from({ length: 25 }, (_, i) => ({ id: i }))
+      const page = 3
+      const pageSize = 10
+      const start = (page - 1) * pageSize
+      const end = start + pageSize
+      const pageItems = allItems.slice(start, end)
+      
+      expect(pageItems).toHaveLength(5)
+      expect(pageItems[0].id).toBe(20)
+    })
   })
 })

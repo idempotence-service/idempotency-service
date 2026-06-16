@@ -11,6 +11,7 @@
     "test:run": "vitest run"
   },
   "dependencies": {
+    "@rolldown/binding-darwin-arm64": "^1.1.1",
     "axios": "^1.6.7",
     "chart.js": "^4.5.1",
     "pinia": "^2.1.7",
@@ -22,6 +23,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/vue": "^8.1.0",
     "@vitejs/plugin-vue": "^5.0.4",
+    "@vitest/coverage-v8": "^4.1.9",
     "@vue/test-utils": "^2.4.11",
     "autoprefixer": "^10.4.17",
     "happy-dom": "^20.10.3",

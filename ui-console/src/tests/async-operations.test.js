@@ -118,20 +118,26 @@ describe('Async Operations Logic', () => {
   describe('retry logic', () => {
     it('retries on failure', async () => {
       let attempts = 0
+      const maxAttempts = 3
       const operation = async () => {
         attempts++
-        if (attempts < 3) throw new Error('fail')
+        if (attempts < maxAttempts) throw new Error('fail')
         return 'success'
       }
       
-      try {
-        await operation()
-        await operation()
-        const result = await operation()
-        expect(result).toBe('success')
-      } catch (error) {
-        expect(true).toBe(false)
+      // Simulate retry loop
+      let result
+      for (let i = 0; i < maxAttempts; i++) {
+        try {
+          result = await operation()
+          break
+        } catch (error) {
+          if (i === maxAttempts - 1) throw error
+        }
       }
+      
+      expect(result).toBe('success')
+      expect(attempts).toBe(maxAttempts)
     })
   })
 })

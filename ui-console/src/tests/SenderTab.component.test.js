@@ -63,4 +63,81 @@ describe('SenderTab Component', () => {
     
     expect(wrapper.text()).toBeDefined()
   })
+
+  it('has send event section', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Sender</div>' } }]
+    })
+    
+    const wrapper = mount(SenderTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.text()).toContain('Отправить событие')
+  })
+
+  it('has sent messages section', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Sender</div>' } }]
+    })
+    
+    const wrapper = mount(SenderTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.text()).toContain('Отправленные сообщения')
+  })
+
+  it('has replies section', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Sender</div>' } }]
+    })
+    
+    const wrapper = mount(SenderTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    expect(wrapper.text()).toContain('Полученные ответы')
+  })
+
+  it('has input fields for event form', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Sender</div>' } }]
+    })
+    
+    const wrapper = mount(SenderTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    const inputs = wrapper.findAll('input')
+    expect(inputs.length).toBeGreaterThan(0)
+  })
+
+  it('has send button', () => {
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [{ path: '/', component: { template: '<div>Sender</div>' } }]
+    })
+    
+    const wrapper = mount(SenderTab, {
+      global: {
+        plugins: [router]
+      }
+    })
+    
+    const buttons = wrapper.findAll('button')
+    expect(buttons.length).toBeGreaterThan(0)
+  })
 })

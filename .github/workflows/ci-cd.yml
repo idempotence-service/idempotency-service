@@ -166,7 +166,10 @@ jobs:
 
       - name: Copy deployment files to server
         run: |
-          ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' 'mkdir -p ~/apps/idempotency-service'
+          ssh -p '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}' '
+            mkdir -p ~/apps/idempotency-service
+            rm -rf ~/apps/idempotency-service/prometheus.yml
+          '
           scp -r -P '${{ secrets.DEPLOY_PORT }}' -i ~/.ssh/id_ed25519 .deploy/. '${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:~/apps/idempotency-service/'
 
       - name: Run deployment on server

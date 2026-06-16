@@ -1,0 +1,460 @@
+openapi: 3.0.3
+info:
+  title: Sender Simulator API
+  description: |
+    API симулятора отправителя сообщений.
+    Эмулирует внешнюю систему, которая отправляет события в Core Service.
+    Поддерживает симуляцию автоматической отправки, дублирование сообщений
+    и сбор статистики для тестирования идемпотентности.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8081
+    description: Sender Simulator
+
+tags:
+  - name: Send Events
+    description: Отправка событий и ручное тестирование
+  - name: Monitoring
+    description: Просмотр отправленных сообщений, ответов и статистики
+  - name: Simulation Config
+    description: Конфигурация автоматической симуляции отправки
+  - name: State Management
+    description: Сброс состояния отправителя
+
+paths:
+
+  # ─── Send Events ──────────────────────────────────────────────────────────────
+
+  /api/sender/send:
+    post:
+      tags: [Send Events]
+      summary: Отправить событие
+      description: |
+        Отправляет событие в систему. Можно указать количество дублей для тестирования идемпотентности.
+        Если uid не указан — генерируется автоматически.
+      operationId: sendEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEventRequest'
+            examples:
+              minimal:
+                summary: Минимальный запрос
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  duplicates: 1
+              withPayload:
+                summary: С телом и заголовками
+                value:
+                  integration: "PAYMENT_SERVICE"
+                  uid: "my-unique-uid-001"
+                  headers:
+                    X-Trace-Id: "trace-123"
+                    X-Request-Id: "req-456"
+                  payload:
+                    amount: 1000
+                    currency: "RUB"
+                    userId: 12345
+                  duplicates: 3
+      responses:
+        '200':
+          description: Событие отправлено, возвращается uid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "my-unique-uid-001"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ─── Monitoring ───────────────────────────────────────────────────────────────
+
+  /api/sender/sent:
+    get:
+      tags: [Monitoring]
+      summary: Получить все отправленные сообщения
+      operationId: getSentMessages
+      parameters:
+        - name: since
+          in: query
+          description: Фильтр по дате (ISO 8601, например 2024-01-01T00:00:00Z)
+          schema:
+            type: string
+            format: date-time
+          example: "2024-01-01T00:00:00Z"
+      responses:
+        '200':
+          description: Список отправленных сообщений
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+              example:
+                success: true
+                data: []
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/sender/replies:
+    get:
+      tags: [Monitoring]
+      summary: Получить все полученные ответы
+      operationId: getReplies
+      responses:
+        '200':
+          description: Список полученных ответов на отправленные сообщения
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+              example:
+                success: true
+                data: []
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/sender/stats:
+    get:
+      tags: [Monitoring]
+      summary: Получить статистику отправленных сообщений
+      operationId: getSenderStats
+      parameters:
+        - name: since
+          in: query
+          description: Фильтр по дате (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+          example: "2024-01-01T00:00:00Z"
+      responses:
+        '200':
+          description: Статистика по отправленным сообщениям
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseAny'
+              example:
+                success: true
+                data:
+                  total: 150
+                  byIntegration:
+                    PAYMENT_SERVICE: 100
+                    NOTIFICATION_SERVICE: 50
+                  byStatus:
+                    SUCCESS: 140
+                    PENDING: 10
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ─── Simulation Config ───────────────────────────────────────────────────────
+
+  /api/sender/config:
+    get:
+      tags: [Simulation Config]
+      summary: Получить конфигурацию симуляции автоматической отправки
+      operationId: getSimulationConfig
+      responses:
+        '200':
+          description: Текущая конфигурация симуляции
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseSimulationConfigResponse'
+              example:
+                success: true
+                data:
+                  enabled: true
+                  integration: "PAYMENT_SERVICE"
+                  intervalSeconds: 5
+                  duplicateEvery: 10
+                  burstSize: 3
+                  pauseSeconds: 30
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      tags: [Simulation Config]
+      summary: Обновить конфигурацию симуляции автоматической отправки
+      description: |
+        Настройка автоматической симуляции отправки сообщений с заданным интервалом.
+        
+        Параметры:
+        - `enabled`: включить/выключить симуляцию
+        - `integration`: интеграция, для которой отправляются события
+        - `intervalSeconds`: интервал между отправками
+        - `duplicateEvery`: каждое N-ое сообщение дублировать
+        - `burstSize`: размер пачки при отправке
+        - `pauseSeconds`: пауза после отправки пачки
+      operationId: updateSimulationConfig
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SimulationConfigRequest'
+            examples:
+              enable:
+                summary: Включить симуляцию с базовыми настройками
+                value:
+                  enabled: true
+                  integration: "PAYMENT_SERVICE"
+                  intervalSeconds: 10
+              full:
+                summary: Полная конфигурация
+                value:
+                  enabled: true
+                  integration: "PAYMENT_SERVICE"
+                  intervalSeconds: 5
+                  duplicateEvery: 10
+                  burstSize: 3
+                  pauseSeconds: 30
+              disable:
+                summary: Выключить симуляцию
+                value:
+                  enabled: false
+      responses:
+        '200':
+          description: Конфигурация обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ─── State Management ─────────────────────────────────────────────────────────
+
+  /api/sender/state:
+    delete:
+      tags: [State Management]
+      summary: Сбросить состояние отправителя
+      description: Очищает все отправленные сообщения, полученные ответы и статистику.
+      operationId: resetSenderState
+      responses:
+        '200':
+          description: Состояние сброшено
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponseString'
+              example:
+                success: true
+                data: "ok"
+                error: null
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+# ─── Components ────────────────────────────────────────────────────────────────
+
+components:
+
+  schemas:
+
+    # ── Wrappers ────────────────────────────────────────────────────────────────
+
+    ApiResponseString:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: string
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiResponseAny:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          description: Может быть списком сообщений, ответов, статистикой или любым другим объектом
+          nullable: true
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiResponseSimulationConfigResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/SimulationConfigResponse'
+        error:
+          $ref: '#/components/schemas/ApiError'
+          nullable: true
+
+    ApiError:
+      type: object
+      properties:
+        errorUid:
+          type: string
+          description: Уникальный идентификатор ошибки
+        title:
+          type: string
+          description: Заголовок ошибки
+        code:
+          type: string
+          description: Код ошибки
+          example: "TECHNICAL_ERROR_99"
+        text:
+          type: string
+          description: Текст ошибки
+
+    # ── Requests ────────────────────────────────────────────────────────────────
+
+    SendEventRequest:
+      type: object
+      required:
+        - integration
+        - duplicates
+      properties:
+        integration:
+          type: string
+          description: Тип интеграции / назначение события
+          example: "PAYMENT_SERVICE"
+        uid:
+          type: string
+          description: Произвольный uid (если не указан — генерируется автоматически)
+          nullable: true
+          example: "my-unique-uid-001"
+        headers:
+          type: object
+          additionalProperties: true
+          description: Произвольные заголовки события
+          nullable: true
+          example:
+            X-Trace-Id: "trace-123"
+            X-Request-Id: "req-456"
+        payload:
+          type: object
+          description: Тело события (произвольный JSON)
+          nullable: true
+          example:
+            amount: 1000
+            currency: "RUB"
+            userId: 12345
+        duplicates:
+          type: integer
+          minimum: 1
+          description: Количество отправок (для тестирования идемпотентности)
+          example: 1
+
+    SimulationConfigRequest:
+      type: object
+      description: Запрос на обновление конфигурации симуляции
+      properties:
+        enabled:
+          type: boolean
+          description: Включить/выключить автоматическую симуляцию
+          nullable: true
+        integration:
+          type: string
+          description: Интеграция для автоматической отправки
+          nullable: true
+          example: "PAYMENT_SERVICE"
+        intervalSeconds:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Интервал между отправками (сек)
+          nullable: true
+          example: 5
+        duplicateEvery:
+          type: integer
+          minimum: 1
+          description: Каждое N-ое сообщение дублировать (0 = не дублировать)
+          nullable: true
+          example: 10
+        burstSize:
+          type: integer
+          minimum: 1
+          description: Размер пачки при отправке
+          nullable: true
+          example: 3
+        pauseSeconds:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Пауза после отправки пачки (сек)
+          nullable: true
+          example: 30
+
+    # ── Responses ───────────────────────────────────────────────────────────────
+
+    SimulationConfigResponse:
+      type: object
+      description: Текущая конфигурация симуляции
+      properties:
+        enabled:
+          type: boolean
+          description: Включена ли автоматическая симуляция
+        integration:
+          type: string
+          description: Интеграция для автоматической отправки
+        intervalSeconds:
+          type: integer
+          format: int64
+          description: Интервал между отправками (сек)
+        duplicateEvery:
+          type: integer
+          description: Каждое N-ое сообщение дублируется
+        burstSize:
+          type: integer
+          description: Размер пачки при отправке
+        pauseSeconds:
+          type: integer
+          format: int64
+          description: Пауза после отправки пачки (сек)
+
+  responses:
+    BadRequest:
+      description: Некорректный запрос (ошибка валидации)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Ошибка валидации"
+              code: "VALIDATION_ERROR"
+              text: "Поле integration не может быть пустым"
+
+    InternalError:
+      description: Внутренняя ошибка сервера
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiResponseString'
+          example:
+            success: false
+            data: null
+            error:
+              errorUid: "a1b2c3d4-..."
+              title: "Техническая ошибка"
+              code: "TECHNICAL_ERROR_99"
+              text: "Непредвиденная ошибка сервера"

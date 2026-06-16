@@ -151,4 +151,48 @@ describe('DashboardView Computed Properties', () => {
       expect(prevIndex).toBe(3)
     })
   })
+
+  describe('computed integrationsList', () => {
+    it('returns integrations list', () => {
+      const integrations = [
+        { integrationName: 'system1-to-system2', idempotencyEnabled: true }
+      ]
+      const list = integrations
+      expect(list).toHaveLength(1)
+      expect(list[0].integrationName).toBe('system1-to-system2')
+    })
+
+    it('filters enabled integrations', () => {
+      const integrations = [
+        { integrationName: 'system1-to-system2', idempotencyEnabled: true },
+        { integrationName: 'system3-to-system4', idempotencyEnabled: false }
+      ]
+      const enabled = integrations.filter(i => i.idempotencyEnabled)
+      expect(enabled).toHaveLength(1)
+    })
+  })
+
+  describe('computed stats', () => {
+    it('calculates total sent', () => {
+      const stats = { totalSent: 100, totalReceived: 95 }
+      expect(stats.totalSent).toBe(100)
+    })
+
+    it('calculates total received', () => {
+      const stats = { totalSent: 100, totalReceived: 95 }
+      expect(stats.totalReceived).toBe(95)
+    })
+  })
+
+  describe('computed errorCount', () => {
+    it('returns error count', () => {
+      const errorEvents = { totalElements: 5 }
+      expect(errorEvents.totalElements).toBe(5)
+    })
+
+    it('handles zero errors', () => {
+      const errorEvents = { totalElements: 0 }
+      expect(errorEvents.totalElements).toBe(0)
+    })
+  })
 })

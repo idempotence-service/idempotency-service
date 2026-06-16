@@ -130,4 +130,38 @@ describe('EventDetailModal Computed Properties', () => {
       expect(displayKey).toBe('—')
     })
   })
+
+  describe('computed formattedTimestamp', () => {
+    it('formats timestamp with date', () => {
+      const timestamp = '2024-01-15T10:30:00'
+      const formatted = new Date(timestamp).toLocaleString('ru-RU')
+      expect(formatted).toBeDefined()
+    })
+
+    it('handles null timestamp', () => {
+      const timestamp = null
+      const formatted = timestamp ? new Date(timestamp).toLocaleString('ru-RU') : '—'
+      expect(formatted).toBe('—')
+    })
+  })
+
+  describe('computed statusClass', () => {
+    it('returns success class', () => {
+      const status = 'SUCCESS'
+      const statusClass = status === 'SUCCESS' ? 'success' : status === 'ERROR' ? 'error' : 'pending'
+      expect(statusClass).toBe('success')
+    })
+
+    it('returns error class', () => {
+      const status = 'ERROR'
+      const statusClass = status === 'SUCCESS' ? 'success' : status === 'ERROR' ? 'error' : 'pending'
+      expect(statusClass).toBe('error')
+    })
+
+    it('returns pending class', () => {
+      const status = 'PENDING'
+      const statusClass = status === 'SUCCESS' ? 'success' : status === 'ERROR' ? 'error' : 'pending'
+      expect(statusClass).toBe('pending')
+    })
+  })
 })

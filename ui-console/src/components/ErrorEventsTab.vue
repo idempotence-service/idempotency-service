@@ -48,7 +48,7 @@
       <div class="flex items-center gap-1 px-1">
         <span class="text-xs font-medium" style="color:var(--md-on-surface-v)">Сортировка:</span>
         <button
-          @click="toggleSort"
+          @click="toggleSortLocal"
           class="flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all duration-200"
           style="background:var(--md-surface-2); border:1px solid var(--md-outline-v); color:var(--md-primary)"
           :title="sort === 'desc' ? 'Сначала новые — нажмите для переключения' : 'Сначала старые — нажмите для переключения'"
@@ -124,7 +124,7 @@
               <div class="flex items-center gap-2">
                 <span class="mono text-xs" style="color:var(--md-on-surface)">{{ truncateKey(ev.globalKey) }}</span>
                 <button
-                  @click.stop="copyKey(ev.globalKey)"
+                  @click.stop="copyKeyLocal(ev.globalKey)"
                   class="opacity-0 group-hover:opacity-100 btn-icon !w-6 !h-6 shrink-0"
                   title="Копировать"
                   style="font-size:14px">⎘</button>
@@ -223,6 +223,7 @@ import { coreApi } from '../api/core.js'
 import { useToastStore } from '../stores/toast.js'
 import StatusBadge from './StatusBadge.vue'
 import EventDetailModal from './EventDetailModal.vue'
+import { truncateKey, copyKey, toggleSort, calculatePaginationPages, filterEvents } from '../utils/errorEventsHelpers.js'
 
 const toast = useToastStore()
 
@@ -252,23 +253,11 @@ watch(filterIntegration, () => debounce(() => { page.value = 0; loadEvents() }))
 watch(limit, () => { page.value = 0; loadEvents() })
 
 const filteredEvents = computed(() => {
-  let list = events.value
-  const qk = filterKey.value.trim().toLowerCase()
-  const qi = filterIntegration.value.trim().toLowerCase()
-  if (qk) list = list.filter(e => e.globalKey?.toLowerCase().includes(qk))
-  if (qi) list = list.filter(e => e.integration?.toLowerCase().includes(qi))
-  return list
+  return filterEvents(events.value, filterKey.value, filterIntegration.value)
 })
 
 const paginationPages = computed(() => {
-  const total = totalPages.value
-  const cur = page.value
-  if (total <= 7) return Array.from({ length: total }, (_, i) => i)
-  const pages = []
-  if (cur > 2) pages.push(0, '...')
-  for (let i = Math.max(0, cur - 2); i <= Math.min(total - 1, cur + 2); i++) pages.push(i)
-  if (cur < total - 3) pages.push('...', total - 1)
-  return pages
+  return calculatePaginationPages(totalPages.value, page.value)
 })
 
 async function loadEvents() {
@@ -288,8 +277,8 @@ async function loadEvents() {
 
 function reload() { page.value = 0; loadEvents() }
 
-function toggleSort() {
-  sort.value = sort.value === 'desc' ? 'asc' : 'desc'
+function toggleSortLocal() {
+  sort.value = toggleSort(sort.value)
   page.value = 0
   loadEvents()
 }
@@ -300,14 +289,8 @@ function goPage(p) {
   loadEvents()
 }
 
-function truncateKey(key) {
-  if (!key) return '—'
-  return key.length > 26 ? key.slice(0, 8) + '…' + key.slice(-8) : key
-}
-
-function copyKey(key) {
-  navigator.clipboard.writeText(key)
-  toast.info('globalKey скопирован')
+function copyKeyLocal(key) {
+  copyKey(key, toast)
 }
 
 function openDetail(ev) {

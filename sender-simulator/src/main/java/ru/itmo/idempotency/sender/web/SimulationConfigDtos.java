@@ -1,24 +1,25 @@
 package ru.itmo.idempotency.sender.web;
 
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.DecimalMin;
 
 public class SimulationConfigDtos {
 
     public record SimulationConfigResponse(
         boolean enabled,
         String integration,
-        long intervalSeconds,
+        double intervalSeconds,
         int duplicateEvery,
         int burstSize,
-        long pauseSeconds
+        double pauseSeconds
     ) {}
 
     public record SimulationConfigRequest(
         Boolean enabled,
         String integration,
-        @Min(1) Long intervalSeconds,
+        @DecimalMin("0.001") Double intervalSeconds,
         @Min(1) Integer duplicateEvery,
         @Min(1) Integer burstSize,
-        @Min(0) Long pauseSeconds
+        @DecimalMin("0.0") Double pauseSeconds
     ) {}
 }

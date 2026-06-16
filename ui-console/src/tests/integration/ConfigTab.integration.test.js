@@ -47,10 +47,10 @@ describe('ConfigTab Integration Tests', () => {
         data: {
           enabled: false,
           integration: 'system1-to-system2',
-          intervalSeconds: 2,
+          intervalSeconds: 0.06,
           duplicateEvery: 2,
           burstSize: 5,
-          pauseSeconds: 5
+          pauseSeconds: 0.5
         }
       }
     })
@@ -199,12 +199,11 @@ describe('ConfigTab Integration Tests', () => {
     await flushPromises()
     
     const inputs = wrapper.findAll('input[type="number"]')
-    if (inputs.length >= 5) {
+    if (inputs.length >= 4) {
       await inputs[0].setValue(10)
       await inputs[1].setValue(10)
       await inputs[2].setValue(20)
-      await inputs[3].setValue(86400)
-      await inputs[4].setValue(200)
+      await inputs[3].setValue(200)
       await flushPromises()
       
       expect(inputs[0].element.value).toBe('10')
@@ -216,15 +215,35 @@ describe('ConfigTab Integration Tests', () => {
     await flushPromises()
     
     const inputs = wrapper.findAll('input[type="number"]')
-    if (inputs.length >= 10) {
+    if (inputs.length >= 9) {
+      await inputs[4].setValue(15)
       await inputs[5].setValue(15)
-      await inputs[6].setValue(15)
-      await inputs[7].setValue(90)
-      await inputs[8].setValue(60)
-      await inputs[9].setValue(10)
+      await inputs[6].setValue(90)
+      await inputs[7].setValue(60)
+      await inputs[8].setValue(10)
       await flushPromises()
       
-      expect(inputs[5].element.value).toBe('15')
+      expect(inputs[4].element.value).toBe('15')
+    }
+  })
+
+  it('preserves fractional simulation timing when saving burst size', async () => {
+    const wrapper = mount(ConfigTab)
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input[type="number"]')
+    const saveButtons = wrapper.findAll('button').filter(b => b.text().includes('Применить'))
+
+    if (inputs.length >= 18 && saveButtons.length >= 5) {
+      await inputs[15].setValue(12)
+      await saveButtons[4].trigger('click')
+      await flushPromises()
+
+      expect(senderApi.updateSimulationConfig).toHaveBeenCalledWith(expect.objectContaining({
+        intervalSeconds: 0.06,
+        burstSize: 12,
+        pauseSeconds: 0.5,
+      }))
     }
   })
 })

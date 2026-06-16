@@ -29,6 +29,12 @@ import javax.sql.DataSource;
 @RequiredArgsConstructor
 public class IdempotencyService {
 
+    public enum AsyncReplyTransitionResult {
+        APPLIED,
+        ALREADY_RELEASED,
+        OWNERSHIP_LOST
+    }
+
     private static final String INSERT_IF_ABSENT_POSTGRES_SQL = """
             INSERT INTO idempotency (
                 global_key,
@@ -187,6 +193,18 @@ public class IdempotencyService {
     }
 
     @Transactional
+    public AsyncReplyTransitionResult markClaimedWaitingForAsyncReply(String globalKey, String ownerId) {
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> transitionClaimedToWaitingForAsyncReply(globalKey, ownerId));
+    }
+
+    @Transactional
+    public AsyncReplyTransitionResult releaseClaimedAsyncReplyWait(String globalKey, String ownerId) {
+        return storageShardExecutor.runOnKey(globalKey,
+                () -> releaseClaimedAsyncReplyWaitInternal(globalKey, ownerId));
+    }
+
+    @Transactional
     public boolean retryClaimedDelivery(String globalKey,
                                         String ownerId,
                                         String description,
@@ -241,11 +259,50 @@ public class IdempotencyService {
         return true;
     }
 
+    private AsyncReplyTransitionResult transitionClaimedToWaitingForAsyncReply(String globalKey, String ownerId) {
+        IdempotencyEntity entity = idempotencyRepository.findByGlobalKeyForUpdate(globalKey).orElse(null);
+        if (entity == null) {
+            return AsyncReplyTransitionResult.OWNERSHIP_LOST;
+        }
+        if (entity.getOwnerId() != null && entity.getOwnerId().equals(ownerId)) {
+            applyWaitingForAsyncReply(entity);
+            idempotencyRepository.save(entity);
+            return AsyncReplyTransitionResult.APPLIED;
+        }
+        if (entity.getOwnerId() == null) {
+            return AsyncReplyTransitionResult.ALREADY_RELEASED;
+        }
+        return AsyncReplyTransitionResult.OWNERSHIP_LOST;
+    }
+
+    private AsyncReplyTransitionResult releaseClaimedAsyncReplyWaitInternal(String globalKey, String ownerId) {
+        IdempotencyEntity entity = idempotencyRepository.findByGlobalKeyForUpdate(globalKey).orElse(null);
+        if (entity == null) {
+            return AsyncReplyTransitionResult.OWNERSHIP_LOST;
+        }
+        if (entity.getOwnerId() != null && entity.getOwnerId().equals(ownerId)
+                && entity.getStatus() == IdempotencyStatus.WAITING_ASYNC_RESPONSE) {
+            clearLease(entity);
+            idempotencyRepository.save(entity);
+            return AsyncReplyTransitionResult.APPLIED;
+        }
+        if (entity.getOwnerId() == null) {
+            return AsyncReplyTransitionResult.ALREADY_RELEASED;
+        }
+        return AsyncReplyTransitionResult.OWNERSHIP_LOST;
+    }
+
     private void applyStatus(IdempotencyEntity entity, IdempotencyStatus status, String description) {
         entity.setStatus(status);
         entity.setStatusDescription(DescriptionUtils.limit(description));
         entity.setNextAttemptDate(OffsetDateTime.now(ZoneOffset.UTC));
         clearLease(entity);
+    }
+
+    private void applyWaitingForAsyncReply(IdempotencyEntity entity) {
+        entity.setStatus(IdempotencyStatus.WAITING_ASYNC_RESPONSE);
+        entity.setStatusDescription(null);
+        entity.setNextAttemptDate(OffsetDateTime.now(ZoneOffset.UTC));
     }
 
     private void applyRetry(IdempotencyEntity entity,

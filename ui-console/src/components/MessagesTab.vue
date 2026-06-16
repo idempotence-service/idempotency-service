@@ -5,13 +5,6 @@
     <div class="flex items-center justify-between gap-4">
       <div>
         <h2 class="text-2xl font-semibold" style="color:var(--md-on-surface)">Сообщения</h2>
-        <p class="text-sm mt-2 flex items-center gap-3" style="color:var(--md-on-surface-v)">
-          <span>Единый журнал · обновлено {{ lastRefresh }}</span>
-          <span v-if="autoRefresh" class="inline-flex items-center gap-2 px-2 py-1 rounded-full text-xs" style="background:var(--md-surface-2)">
-            <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-            авто
-          </span>
-        </p>
       </div>
       <div class="flex items-center gap-3 shrink-0">
         <button
@@ -32,7 +25,7 @@
     </div>
 
     <!-- Compact filter bar -->
-    <div class="flex flex-wrap items-center gap-4">
+    <div class="flex flex-col gap-4">
       <!-- Type chips -->
       <div class="flex items-center gap-2 p-2 rounded-full"
         style="background:var(--md-surface-2); border:1px solid var(--md-outline-v)">
@@ -54,17 +47,32 @@
       </div>
 
       <!-- Search -->
-      <div class="relative flex-1 min-w-52">
+      <div class="relative min-w-52">
         <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style="color:var(--md-outline)"
           fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
         </svg>
-        <input v-model="search" type="text" class="input pl-10" placeholder="Поиск по key / интеграции / статусу..." />
+        <input v-model="search" type="text" class="input pl-10 pr-10" placeholder="Поиск по key / интеграции / статусу..." />
+        <button
+          v-if="search"
+          @click="search = ''"
+          class="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center justify-center w-5 h-5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          style="color:var(--md-outline)"
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
       </div>
     </div>
 
     <!-- Table -->
     <div class="card overflow-hidden" style="position:relative; min-height:300px">
+      <div
+        ref="scrollContainer"
+        @scroll="handleScroll"
+        style="max-height:600px; overflow-y:auto"
+      >
 
       <!-- Skeleton overlay (shown only during initial load, doesn't remove table from DOM) -->
       <div v-if="isInitialLoading" class="absolute inset-0 z-10" style="background:var(--md-surface); min-height:300px">
@@ -100,9 +108,10 @@
       <table v-show="displayedMessages.length" class="data-table" style="table-layout:fixed; min-height:300px">
         <colgroup>
           <col style="width:160px">
-          <col style="width:240px">
+          <col style="width:200px">
           <col style="width:140px">
-          <col style="width:220px">
+          <col style="width:180px">
+          <col style="width:150px">
         </colgroup>
         <thead>
           <tr style="height:48px">
@@ -132,6 +141,17 @@
               <div class="flex items-center gap-2 h-full">
                 Интеграция
                 <svg v-if="sortBy==='integration'" class="w-3.5 h-3.5" style="color:var(--md-primary)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="sortDir==='asc'?'M5 15l7-7 7 7':'M19 9l-7 7-7-7'"/>
+                </svg>
+                <svg v-else class="w-3.5 h-3.5" style="color:var(--md-outline);opacity:0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/>
+                </svg>
+              </div>
+            </th>
+            <th @click="toggleSort('timestamp')" class="cursor-pointer select-none py-3">
+              <div class="flex items-center gap-2 h-full">
+                Время
+                <svg v-if="sortBy==='timestamp'" class="w-3.5 h-3.5" style="color:var(--md-primary)" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="sortDir==='asc'?'M5 15l7-7 7 7':'M19 9l-7 7-7-7'"/>
                 </svg>
                 <svg v-else class="w-3.5 h-3.5" style="color:var(--md-outline);opacity:0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,11 +202,22 @@
                 <span class="text-xs mono px-2 py-1 rounded-lg" style="background:var(--md-surface-3); color:var(--md-on-surface-v)">{{ msg.integration || '—' }}</span>
               </div>
             </td>
+            <!-- Time -->
+            <td class="py-3">
+              <div class="flex items-center h-full">
+                <span class="text-xs mono" style="color:var(--md-on-surface-v)">
+                  {{ formatTimestamp(msg.timestamp) }}
+                </span>
+              </div>
+            </td>
             <!-- Description -->
             <td class="py-3">
               <div class="flex items-center h-full">
-                <span class="text-xs" style="color:var(--md-on-surface-v)">
-                  {{ msg.description ? truncate(msg.description, 38) : '—' }}
+                <span 
+                  class="text-xs cursor-help" 
+                  style="color:var(--md-on-surface-v)"
+                  :title="msg.description || ''">
+                  {{ msg.description ? truncate(msg.description, 30) : '—' }}
                 </span>
               </div>
             </td>
@@ -258,21 +289,6 @@
         </Transition>
       </Teleport>
 
-      <!-- Footer info -->
-      <div class="flex items-center justify-between px-4 py-3 text-xs"
-        style="border-top:1px solid var(--md-outline-v); color:var(--md-on-surface-v)">
-        <span class="flex items-center gap-2">
-          <!-- Refresh indicator - always in DOM to prevent layout shift -->
-          <span v-show="isRefreshing" class="w-3 h-3 rounded-full animate-pulse shrink-0" style="background:var(--md-primary)"></span>
-          <span v-show="!isRefreshing" class="w-3 h-3 shrink-0"></span>
-          <span>
-            Показано <strong class="tabular-nums" style="color:var(--md-on-surface); font-variant-numeric: tabular-nums">{{ displayedMessages.length }}</strong>
-            из <strong class="tabular-nums" style="color:var(--md-on-surface); font-variant-numeric: tabular-nums">{{ allMessages.length }}</strong> записей
-          </span>
-        </span>
-        <span v-show="displayedMessages.length >= maxDisplay" class="italic">
-          (первые {{ maxDisplay }} · обновите для актуальных данных)
-        </span>
       </div>
     </div>
   </div>
@@ -293,7 +309,10 @@ const lastRefresh = ref('—')
 const autoRefresh = ref(true)
 const search = ref('')
 const activeFilter = ref('all')
+
 const maxDisplay = 200
+const displayLimit = ref(200)
+const loadingMore = ref(false)
 const retryingKey = ref(null)
 const hasLoadedOnce = ref(false)
 
@@ -301,11 +320,17 @@ const sentMessages   = ref([])
 const receivedEvents = ref([])
 const errorEvents    = ref([])
 const duplicateEvents = ref([])
+const auditActivity = ref([])
+const senderStats = ref({ totalSent: 0, totalReplies: 0 })
+const receiverStats = ref({ totalReceived: 0 })
+const totalErrorCount = ref(0)
+const totalDuplicateCount = ref(0)
 
-const sortBy  = ref('')
-const sortDir = ref('asc')
+const sortBy  = ref('timestamp')
+const sortDir = ref('desc')
 const selectedMsg = ref(null)
 const allMessages = ref([])
+const scrollContainer = ref(null)
 
 // Loading states - no flash on refresh
 const isInitialLoading = computed(() => loading.value && !allMessages.value.length)
@@ -316,6 +341,34 @@ function toggleSort(col) {
   else { sortBy.value = col; sortDir.value = 'asc' }
 }
 
+function handleScroll() {
+  if (!scrollContainer.value || loadingMore.value) return
+
+  const container = scrollContainer.value
+  const scrollBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+
+  // Load more when user is within 100px of bottom
+  if (scrollBottom < 100 && displayLimit.value < allMessages.value.length) {
+    loadingMore.value = true
+    // Simulate async loading with small delay for smooth UX
+    setTimeout(() => {
+      displayLimit.value = Math.min(displayLimit.value + 100, allMessages.value.length)
+      loadingMore.value = false
+    }, 100)
+  }
+}
+
+async function loadAuditActivity() {
+  try {
+    const now = new Date()
+    const oneHourAgo = new Date(now.getTime() - 60 * 60000).toISOString()
+    const res = await coreApi.getAuditActivity(oneHourAgo)
+    auditActivity.value = res.data?.data || []
+  } catch {
+    auditActivity.value = []
+  }
+}
+
 function rebuildMessages() {
   const list = []
 
@@ -324,36 +377,45 @@ function rebuildMessages() {
     sentMessages.value.map(m => m.uid || m.id || m.globalKey).filter(Boolean)
   )
 
-  sentMessages.value.forEach(m => list.push({
-    _id:         `sent-${m.uid || m.id || JSON.stringify(m)}`,
-    _raw:         m,
-    type:        'sent',
-    key:          m.uid || m.id || '',
-    integration:  m.integration || '',
-    status:       m.status || 'SENT',
-    description:  m.description || '',
-  }))
+  sentMessages.value.forEach(m => {
+    const baseKey = m.uid || m.id || JSON.stringify(m)
+    list.push({
+      _id:         `sent-${baseKey}-${Math.random().toString(36).substr(2, 9)}`,
+      _raw:         m,
+      type:        'sent',
+      key:          m.uid || m.id || '',
+      integration:  m.integration || '',
+      status:       m.status || 'SENT',
+      description:  m.description || '',
+      timestamp:    m.timestamp || null,
+    })
+  })
 
-  receivedEvents.value.forEach(m => list.push({
-    _id:         `recv-${m.globalKey || m.uid || JSON.stringify(m)}`,
-    _raw:         m,
-    type:        'received',
-    key:          m.globalKey || m.uid || '',
-    integration:  m.integration || '',
-    status:       m.status || m.result || 'RECEIVED',
-    description:  m.resultDescription || '',
-  }))
+  receivedEvents.value.forEach(m => {
+    const baseKey = m.globalKey || m.uid || JSON.stringify(m)
+    list.push({
+      _id:         `recv-${baseKey}-${Math.random().toString(36).substr(2, 9)}`,
+      _raw:         m,
+      type:        'received',
+      key:          m.globalKey || m.uid || '',
+      integration:  m.integration || '',
+      status:       m.status || m.result || 'RECEIVED',
+      description:  m.resultDescription || '',
+      timestamp:    m.timestamp || null,
+    })
+  })
 
   errorEvents.value.forEach(m => {
     const key = m.globalKey || ''
     list.push({
-      _id:         `err-${key}`,
+      _id:         `err-${key}-${Math.random().toString(36).substr(2, 9)}`,
       _raw:         m,
       type:         'error',
       key,
       integration:  m.integration || '',
       status:       m.status || 'ERROR',
       description:  m.statusDescription || '',
+      timestamp:    m.createDate || m.timestamp || null,
     })
   })
 
@@ -361,13 +423,14 @@ function rebuildMessages() {
   duplicateEvents.value.forEach(m => {
     const key = m.globalKey || ''
     list.push({
-      _id:         `dup-${key}`,
+      _id:         `dup-${key}-${Math.random().toString(36).substr(2, 9)}`,
       _raw:         m,
       type:         'duplicate',
       key,
       integration:  m.integration || '',
       status:       'DUPLICATE',
-      description:  'Duplicate request blocked by idempotency service',
+      description:  m.reason || 'Duplicate request blocked by idempotency service',
+      timestamp:    m.createDate || m.timestamp || null,
     })
   })
 
@@ -382,17 +445,36 @@ const rawFields = computed(() => {
     .map(([k, v]) => [k, v === null || v === undefined ? '—' : (typeof v === 'object' ? JSON.stringify(v, null, 2) : String(v))])
 })
 
-const filters = computed(() => [
-  { id: 'all',       label: 'Все',         icon: '≡',  count: allMessages.value.length,                                        activeBg: 'var(--md-surface-3)',    activeColor: 'var(--md-on-surface)' },
-  { id: 'sent',      label: 'Отправлены',  icon: '↑',  count: allMessages.value.filter(m => m.type === 'sent').length,         activeBg: 'rgba(130,177,255,0.2)', activeColor: '#82b1ff' },
-  { id: 'received',  label: 'Получены',    icon: '↓',  count: allMessages.value.filter(m => m.type === 'received').length,    activeBg: 'rgba(109,213,140,0.2)', activeColor: 'var(--md-success)' },
-  { id: 'error',     label: 'Ошибки',      icon: '⚠',  count: allMessages.value.filter(m => m.type === 'error').length,        activeBg: 'rgba(242,184,181,0.2)', activeColor: 'var(--md-error)' },
-  { id: 'duplicate', label: 'Дубли',        icon: '♻',  count: allMessages.value.filter(m => m.type === 'duplicate').length,   activeBg: 'rgba(246,193,66,0.2)',  activeColor: '#f6c142' },
-])
+const filters = computed(() => {
+  // Calculate totals from auditActivity for errors (time-limited)
+  const auditArray = Array.isArray(auditActivity.value) ? auditActivity.value : []
+  const errorCountFromAudit = auditArray.reduce((sum, slot) => {
+    return sum +
+      (slot['Некорректное входящее событие'] || 0) +
+      (slot['Не найден маршрут для входящего события'] || 0) +
+      (slot['Некорректный ответ от системы-получателя'] || 0) +
+      (slot['Получен ответ без ожидающей операции'] || 0) +
+      (slot['Не получен асинхронный ответ от системы-получателя вовремя'] || 0)
+  }, 0)
+
+  const totalCount = allMessages.value.length
+
+  return [
+    { id: 'all',       label: 'Все',         icon: '≡',  count: null,                                                                     activeBg: 'var(--md-surface-3)',    activeColor: 'var(--md-on-surface)' },
+    { id: 'sent',      label: 'Отправлены',  icon: '↑',  count: senderStats.value.totalSent,                                   activeBg: 'rgba(130,177,255,0.2)', activeColor: '#82b1ff' },
+    { id: 'received',  label: 'Получены',    icon: '↓',  count: receiverStats.value.totalReceived,                             activeBg: 'rgba(109,213,140,0.2)', activeColor: 'var(--md-success)' },
+    { id: 'error',     label: 'Операции с ошибкой', icon: '⚠',  count: errorCountFromAudit,                                                          activeBg: 'rgba(242,184,181,0.2)', activeColor: 'var(--md-error)' },
+    { id: 'duplicate', label: 'Дубли',        icon: '♻',  count: totalDuplicateCount.value,                                                 activeBg: 'rgba(246,193,66,0.2)',  activeColor: '#f6c142' },
+  ]
+})
 
 const displayedMessages = computed(() => {
   let list = allMessages.value
+  
+  // Filter by type
   if (activeFilter.value !== 'all') list = list.filter(m => m.type === activeFilter.value)
+  
+  // Filter by search
   if (search.value.trim()) {
     const q = search.value.trim().toLowerCase()
     list = list.filter(m =>
@@ -401,15 +483,23 @@ const displayedMessages = computed(() => {
       m.status?.toLowerCase().includes(q)
     )
   }
+  
+  // Sort
   if (sortBy.value) {
     const col = sortBy.value
     list = [...list].sort((a, b) => {
+      if (col === 'timestamp') {
+        const va = a[col] ? new Date(a[col]).getTime() : 0
+        const vb = b[col] ? new Date(b[col]).getTime() : 0
+        return sortDir.value === 'asc' ? va - vb : vb - va
+      }
       const va = String(a[col] ?? '').toLowerCase()
       const vb = String(b[col] ?? '').toLowerCase()
       return sortDir.value === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va)
     })
   }
-  return list.slice(0, maxDisplay)
+  
+  return list.slice(0, displayLimit.value)
 })
 
 function typeStyle(type) {
@@ -426,6 +516,18 @@ function truncate(s, n) {
   return s.length > n ? s.slice(0, 10) + '…' + s.slice(-6) : s
 }
 
+function formatTimestamp(timestamp) {
+  if (!timestamp) return '—'
+  const date = new Date(timestamp)
+  if (isNaN(date.getTime())) return '—'
+  
+  const now = new Date()
+  const isToday = date.toDateString() === now.toDateString()
+  
+  return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' ' + 
+         date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
 function copy(key) {
   navigator.clipboard.writeText(key)
   toast.info('Скопировано')
@@ -434,11 +536,14 @@ function copy(key) {
 async function loadAll() {
   loading.value = true
   try {
-    const [sentRes, recvRes, errRes, dupRes] = await Promise.allSettled([
+    const [sentRes, recvRes, errRes, dupRes, auditRes, statsRes, recvStatsRes] = await Promise.allSettled([
       senderApi.getSentMessages(),
       receiverApi.getReceivedEvents(),
       coreApi.getErrorEvents({ page: 0, limit: 100, sort: 'desc' }),
       coreApi.getDuplicateEvents(),
+      loadAuditActivity(),
+      senderApi.getStats(),
+      receiverApi.getStats(),
     ])
     if (sentRes.status === 'fulfilled') {
       const d = sentRes.value.data?.data
@@ -454,7 +559,16 @@ async function loadAll() {
     }
     if (dupRes.status === 'fulfilled') {
       const d = dupRes.value.data?.data
-      duplicateEvents.value = Array.isArray(d) ? d : []
+      duplicateEvents.value = d?.content ?? []
+      totalDuplicateCount.value = d?.totalElements ?? duplicateEvents.value.length
+    }
+    if (statsRes.status === 'fulfilled') {
+      const d = statsRes.value.data?.data
+      senderStats.value = { totalSent: d?.totalSent || 0, totalReplies: d?.totalReplies || 0 }
+    }
+    if (recvStatsRes.status === 'fulfilled') {
+      const d = recvStatsRes.value.data?.data
+      receiverStats.value = { totalReceived: d?.totalReceived || 0, totalDuplicates: d?.totalDuplicates || 0 }
     }
     // Build unified message list only after all data received
     rebuildMessages()
@@ -484,7 +598,7 @@ async function retryEvent(key) {
 
 let timer = null
 watch(autoRefresh, (v) => {
-  if (v) timer = setInterval(loadAll, 8000)
+  if (v) timer = setInterval(loadAll, 30000)
   else clearInterval(timer)
 }, { immediate: true })
 

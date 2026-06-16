@@ -38,19 +38,19 @@
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div>
             <label class="label">Outbox delay (сек)</label>
-            <input v-model.number="scheduler.outboxFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.outboxFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Delivery delay (сек)</label>
-            <input v-model.number="scheduler.deliveryFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.deliveryFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Reply timeout check (сек)</label>
-            <input v-model.number="scheduler.replyTimeoutFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.replyTimeoutFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Cleanup delay (сек)</label>
-            <input v-model.number="scheduler.cleanupFixedDelaySeconds" type="number" min="1" class="input" />
+            <input v-model.number="scheduler.cleanupFixedDelaySeconds" type="number" min="0.001" step="0.001" class="input" />
           </div>
           <div>
             <label class="label">Batch size</label>
@@ -193,7 +193,12 @@
         <div class="grid grid-cols-2 lg:grid-cols-3 gap-4">
           <div class="lg:col-span-2">
             <label class="label">Интеграция</label>
-            <input v-model="simulation.integration" type="text" class="input" placeholder="system1-to-system2" />
+            <select v-model="simulation.integration" class="input">
+              <option v-for="integration in availableIntegrations" :key="integration.integrationName" :value="integration.integrationName">
+                {{ integration.integrationName }}
+                <template v-if="!integration.idempotencyEnabled"> (без идемпотентности)</template>
+              </option>
+            </select>
           </div>
           <div>
             <label class="label">Интервал (сек)</label>
@@ -231,6 +236,7 @@ import { useToastStore } from '../stores/toast.js'
 
 const toast = useToastStore()
 const loading = ref(false)
+const availableIntegrations = ref([])
 
 const saving = reactive({
   scheduler: false,
@@ -278,9 +284,10 @@ const simulation = reactive({
 async function loadAll() {
   loading.value = true
   try {
-    const [coreRes, simRes] = await Promise.all([
+    const [coreRes, simRes, integrationsRes] = await Promise.all([
       coreApi.getConfig(),
       senderApi.getSimulationConfig(),
+      coreApi.getIntegrations(),
     ])
 
     const cfg = coreRes.data.data
@@ -291,6 +298,8 @@ async function loadAll() {
 
     const sim = simRes.data.data
     Object.assign(simulation, sim)
+
+    availableIntegrations.value = integrationsRes.data.data || []
   } catch {
     toast.error('Не удалось загрузить конфигурацию')
   } finally {

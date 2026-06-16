@@ -103,6 +103,16 @@ jobs:
             ${{ steps.meta.outputs.image_base }}/ui-console:${{ steps.meta.outputs.image_tag }}
             ${{ steps.meta.outputs.image_base }}/ui-console:latest
 
+      - name: Build and push metrics-aggregator image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./metrics-aggregator
+          file: ./metrics-aggregator/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image_base }}/metrics-aggregator:${{ steps.meta.outputs.image_tag }}
+            ${{ steps.meta.outputs.image_base }}/metrics-aggregator:latest
+
   deploy:
     name: Deploy to VPS
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -129,11 +139,15 @@ jobs:
         run: |
           mkdir -p .deploy
           cp deploy/docker-compose.yml .deploy/docker-compose.yml
+          cp -r config .deploy/config
+          cp sender-simulator/src/main/resources/application.yml .deploy/sender-application.yml
+          cp receiver-simulator/src/main/resources/application.yml .deploy/receiver-application.yml
           cat > .deploy/.env <<DEPLOY_ENV
           CORE_SERVICE_IMAGE=${IMAGE_BASE}/core-service:${IMAGE_TAG}
           SENDER_SIMULATOR_IMAGE=${IMAGE_BASE}/sender-simulator:${IMAGE_TAG}
           RECEIVER_SIMULATOR_IMAGE=${IMAGE_BASE}/receiver-simulator:${IMAGE_TAG}
           UI_CONSOLE_IMAGE=${IMAGE_BASE}/ui-console:${IMAGE_TAG}
+          METRICS_AGGREGATOR_IMAGE=${IMAGE_BASE}/metrics-aggregator:${IMAGE_TAG}
           POSTGRES_DB=${POSTGRES_DB}
           POSTGRES_USER=${POSTGRES_USER}
           POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -171,7 +185,7 @@ jobs:
           sleep 20
           docker compose -f docker-compose.yml -p idempotency-service ps
 
-          for service in postgres-shard-0 postgres-shard-1 postgres-shard-2 redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator ui-console; do
+          for service in postgres-shard-0 postgres-shard-1 postgres-shard-2 redpanda-sender redpanda-receiver core-service-1 core-service-2 core-service-3 sender-simulator receiver-simulator metrics-aggregator ui-console; do
             container_id=$(docker compose -f docker-compose.yml -p idempotency-service ps -q "$service")
             if [ -z "$container_id" ]; then
               echo "Service $service was not created"

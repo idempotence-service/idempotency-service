@@ -1,14 +1,15 @@
 package ru.itmo.idempotency.core.web;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 
 public class ConfigDtos {
 
     public record SchedulerConfig(
-        @Min(1) Long outboxFixedDelaySeconds,
-        @Min(1) Long deliveryFixedDelaySeconds,
-        @Min(1) Long replyTimeoutFixedDelaySeconds,
-        @Min(1) Long cleanupFixedDelaySeconds,
+        @DecimalMin("0.001") Double outboxFixedDelaySeconds,
+        @DecimalMin("0.001") Double deliveryFixedDelaySeconds,
+        @DecimalMin("0.001") Double replyTimeoutFixedDelaySeconds,
+        @DecimalMin("0.001") Double cleanupFixedDelaySeconds,
         @Min(1) Integer batchSize
     ) {}
 

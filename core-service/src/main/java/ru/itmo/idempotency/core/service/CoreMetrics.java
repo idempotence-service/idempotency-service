@@ -67,10 +67,10 @@ public class CoreMetrics {
                 .tag("state", "enabled")
                 .register(meterRegistry);
 
-        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "outbox", () -> coreProperties.getScheduler().getOutboxFixedDelay().toSeconds());
-        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "delivery", () -> coreProperties.getScheduler().getDeliveryFixedDelay().toSeconds());
-        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "reply_timeout", () -> coreProperties.getScheduler().getReplyTimeoutFixedDelay().toSeconds());
-        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "cleanup", () -> coreProperties.getScheduler().getCleanupFixedDelay().toSeconds());
+        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "outbox", () -> durationToSeconds(coreProperties.getScheduler().getOutboxFixedDelay()));
+        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "delivery", () -> durationToSeconds(coreProperties.getScheduler().getDeliveryFixedDelay()));
+        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "reply_timeout", () -> durationToSeconds(coreProperties.getScheduler().getReplyTimeoutFixedDelay()));
+        registerGauge("idempotency.config.scheduler.delay.seconds", "kind", "cleanup", () -> durationToSeconds(coreProperties.getScheduler().getCleanupFixedDelay()));
         registerGauge("idempotency.config.scheduler.batch_size", "kind", "default", () -> coreProperties.getScheduler().getBatchSize());
         registerGauge("idempotency.config.listener.concurrency", "kind", "inbound", () -> coreProperties.getListener().getInboundConcurrency());
         registerGauge("idempotency.config.listener.concurrency", "kind", "reply", () -> coreProperties.getListener().getReplyConcurrency());
@@ -234,6 +234,10 @@ public class CoreMetrics {
                 .tag(tagKey, tagValue)
                 .strongReference(true)
                 .register(meterRegistry);
+    }
+
+    private double durationToSeconds(Duration duration) {
+        return duration.toMillis() / 1000.0;
     }
 
     private String sanitizeTag(String value) {

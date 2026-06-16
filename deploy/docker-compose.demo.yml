@@ -1,0 +1,369 @@
+name: idempotency-demo
+
+x-common-java-env: &common-java-env
+  LOGGING_LEVEL_ORG_APACHE_KAFKA: WARN
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK_KAFKA: WARN
+  LOGGING_LEVEL_KAFKA: WARN
+
+x-core-build: &core-build
+  image: idempotency/core-service:demo
+  build:
+    context: ..
+    dockerfile: core-service/Dockerfile
+
+x-sender-build: &sender-build
+  image: idempotency/sender-simulator:demo
+  build:
+    context: ..
+    dockerfile: sender-simulator/Dockerfile
+
+x-receiver-build: &receiver-build
+  image: idempotency/receiver-simulator:demo
+  build:
+    context: ..
+    dockerfile: receiver-simulator/Dockerfile
+
+x-ui-build: &ui-build
+  image: idempotency/ui-console:demo
+  build:
+    context: ..
+    dockerfile: ui-console/Dockerfile
+
+x-metrics-build: &metrics-build
+  image: idempotency/metrics-aggregator:demo
+  build:
+    context: ../metrics-aggregator
+    dockerfile: Dockerfile
+
+x-core-env: &core-env
+  <<: *common-java-env
+  JAVA_TOOL_OPTIONS: -Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+  APP_ROUTES_FILE: /app/config/routes.yaml
+  APP_LISTENER_INBOUND_CONCURRENCY: "2"
+  APP_LISTENER_REPLY_CONCURRENCY: "2"
+  APP_SCHEDULER_POOL_SIZE: "6"
+  APP_SCHEDULER_OUTBOX_WORKERS: "2"
+  APP_SCHEDULER_DELIVERY_WORKERS: "2"
+  APP_SCHEDULER_REPLY_TIMEOUT_WORKERS: "1"
+  APP_SCHEDULER_BATCH_SIZE: "300"
+  APP_SCHEDULER_OUTBOX_FIXED_DELAY: 250ms
+  APP_SCHEDULER_DELIVERY_FIXED_DELAY: 250ms
+  APP_SCHEDULER_REPLY_TIMEOUT_FIXED_DELAY: 5s
+  APP_RESILIENCE_OUTBOX_RETRY_DELAY: 2s
+  APP_RESILIENCE_DELIVERY_RETRY_DELAY: 2s
+  APP_RESILIENCE_REPLY_TIMEOUT: 45s
+  APP_RESILIENCE_LEASE_DURATION: 15s
+  APP_RESILIENCE_MAX_ATTEMPTS: "6"
+  APP_SECURITY_TOKENS_0_TOKEN: operator-token
+  APP_SECURITY_TOKENS_0_PRINCIPAL: operator
+  APP_SECURITY_TOKENS_0_ROLES_0: OPERATOR
+  APP_SECURITY_TOKENS_0_ROLES_1: ADMIN
+  APP_STORAGE_SHARDS_0_SHARD_ID: shard-0
+  APP_STORAGE_SHARDS_0_URL: jdbc:postgresql://postgres-shard-0:5432/idempotency
+  APP_STORAGE_SHARDS_0_USERNAME: idempotency
+  APP_STORAGE_SHARDS_0_PASSWORD: idempotency
+  APP_STORAGE_SHARDS_0_MAXIMUM_POOL_SIZE: "4"
+  APP_STORAGE_SHARDS_1_SHARD_ID: shard-1
+  APP_STORAGE_SHARDS_1_URL: jdbc:postgresql://postgres-shard-1:5432/idempotency
+  APP_STORAGE_SHARDS_1_USERNAME: idempotency
+  APP_STORAGE_SHARDS_1_PASSWORD: idempotency
+  APP_STORAGE_SHARDS_1_MAXIMUM_POOL_SIZE: "4"
+  APP_STORAGE_SHARDS_2_SHARD_ID: shard-2
+  APP_STORAGE_SHARDS_2_URL: jdbc:postgresql://postgres-shard-2:5432/idempotency
+  APP_STORAGE_SHARDS_2_USERNAME: idempotency
+  APP_STORAGE_SHARDS_2_PASSWORD: idempotency
+  APP_STORAGE_SHARDS_2_MAXIMUM_POOL_SIZE: "4"
+
+x-core-service: &core-service
+  <<: *core-build
+  restart: unless-stopped
+  environment:
+    <<: *core-env
+  depends_on:
+    postgres-shard-0:
+      condition: service_healthy
+    postgres-shard-1:
+      condition: service_healthy
+    postgres-shard-2:
+      condition: service_healthy
+    redpanda-sender:
+      condition: service_started
+    redpanda-receiver:
+      condition: service_started
+  volumes:
+    - ./routes.demo.yaml:/app/config/routes.yaml:ro
+  mem_limit: 768m
+  cpus: 1.0
+  expose:
+    - "8080"
+
+x-sender-env: &sender-env
+  <<: *common-java-env
+  JAVA_TOOL_OPTIONS: -Xms128m -Xmx256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+  LOGGING_LEVEL_RU_ITMO_IDEMPOTENCY_SENDER_SERVICE_SIMULATIONSCHEDULER: WARN
+  APP_ROUTES_FILE: /app/config/routes.yaml
+  APP_SIMULATION_ENABLED: "true"
+  APP_SIMULATION_INTEGRATION: system1-to-system2
+  APP_SIMULATION_INTERVAL: 50ms
+  APP_SIMULATION_DUPLICATE_EVERY: "3"
+  APP_SIMULATION_BURST_SIZE: "15"
+  APP_SIMULATION_PAUSE: 500ms
+  APP_STATE_HISTORY_LIMIT: "200"
+
+x-sender-service: &sender-service
+  <<: *sender-build
+  restart: unless-stopped
+  environment:
+    <<: *sender-env
+  depends_on:
+    redpanda-sender:
+      condition: service_started
+    core-service-1:
+      condition: service_started
+  volumes:
+    - ./routes.demo.yaml:/app/config/routes.yaml:ro
+  mem_limit: 384m
+  cpus: 0.75
+  expose:
+    - "8081"
+
+x-receiver-env: &receiver-env
+  <<: *common-java-env
+  JAVA_TOOL_OPTIONS: -Xms128m -Xmx256m -XX:+UseG1GC -XX:MaxGCPauseMillis=200
+  APP_ROUTES_FILE: /app/config/routes.yaml
+  APP_STATE_HISTORY_LIMIT: "200"
+
+x-receiver-service: &receiver-service
+  <<: *receiver-build
+  restart: unless-stopped
+  environment:
+    <<: *receiver-env
+  depends_on:
+    redpanda-receiver:
+      condition: service_started
+    core-service-1:
+      condition: service_started
+  volumes:
+    - ./routes.demo.yaml:/app/config/routes.yaml:ro
+  mem_limit: 384m
+  cpus: 0.75
+  expose:
+    - "8082"
+
+services:
+  postgres-shard-0:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: idempotency
+      POSTGRES_USER: idempotency
+      POSTGRES_PASSWORD: idempotency
+    volumes:
+      - postgres-shard-0-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idempotency -d idempotency"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2g
+    cpus: 1.5
+
+  postgres-shard-1:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: idempotency
+      POSTGRES_USER: idempotency
+      POSTGRES_PASSWORD: idempotency
+    volumes:
+      - postgres-shard-1-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idempotency -d idempotency"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2g
+    cpus: 1.5
+
+  postgres-shard-2:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: idempotency
+      POSTGRES_USER: idempotency
+      POSTGRES_PASSWORD: idempotency
+    volumes:
+      - postgres-shard-2-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U idempotency -d idempotency"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 2g
+    cpus: 1.5
+
+  redpanda-sender:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "2"
+      - --memory
+      - 2G
+      - --reserve-memory
+      - 0M
+      - --check=false
+      - --node-id
+      - "0"
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-sender:9092
+    expose:
+      - "9092"
+    mem_limit: 3g
+    cpus: 2.0
+
+  redpanda-receiver:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.10
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "2"
+      - --memory
+      - 2G
+      - --reserve-memory
+      - 0M
+      - --check=false
+      - --node-id
+      - "0"
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda-receiver:9092
+    expose:
+      - "9092"
+    mem_limit: 3g
+    cpus: 2.0
+
+  core-service-1:
+    <<: *core-service
+    environment:
+      <<: *core-env
+      APP_INSTANCE_ID: core-service-1
+    ports:
+      - "18080:8080"
+
+  core-service-2:
+    <<: *core-service
+    environment:
+      <<: *core-env
+      APP_INSTANCE_ID: core-service-2
+
+  core-service-3:
+    <<: *core-service
+    environment:
+      <<: *core-env
+      APP_INSTANCE_ID: core-service-3
+
+  sender-simulator:
+    <<: *sender-service
+    ports:
+      - "18081:8081"
+
+  sender-worker:
+    <<: *sender-service
+
+  receiver-simulator:
+    <<: *receiver-service
+    ports:
+      - "18082:8082"
+
+  receiver-worker:
+    <<: *receiver-service
+
+  metrics-aggregator:
+    <<: *metrics-build
+    restart: unless-stopped
+    environment:
+      SENDER_INSTANCES: sender-simulator:8081,sender-worker:8081
+      RECEIVER_INSTANCES: receiver-simulator:8082,receiver-worker:8082
+    depends_on:
+      sender-simulator:
+        condition: service_started
+      sender-worker:
+        condition: service_started
+      receiver-simulator:
+        condition: service_started
+      receiver-worker:
+        condition: service_started
+    expose:
+      - "9090"
+    mem_limit: 128m
+    cpus: 0.5
+
+  ui-console:
+    <<: *ui-build
+    restart: unless-stopped
+    depends_on:
+      core-service-1:
+        condition: service_started
+      sender-simulator:
+        condition: service_started
+      receiver-simulator:
+        condition: service_started
+      metrics-aggregator:
+        condition: service_started
+    ports:
+      - "18083:80"
+    mem_limit: 256m
+    cpus: 0.5
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --web.enable-lifecycle
+    depends_on:
+      core-service-1:
+        condition: service_started
+      core-service-2:
+        condition: service_started
+      core-service-3:
+        condition: service_started
+    ports:
+      - "19090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+
+  grafana:
+    image: grafana/grafana-oss:11.1.0
+    restart: unless-stopped
+    depends_on:
+      prometheus:
+        condition: service_started
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    ports:
+      - "18084:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+
+volumes:
+  postgres-shard-0-data:
+  postgres-shard-1-data:
+  postgres-shard-2-data:
+  prometheus-data:
+  grafana-data:

@@ -1,6 +1,9 @@
 name: idempotency-service
 
 x-core-service-environment: &core-service-environment
+  SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-shard-0:5432/${POSTGRES_DB}
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
   APP_ROUTES_FILE: /app/config/routes.yaml
   APP_LISTENER_INBOUND_CONCURRENCY: "3"
   APP_LISTENER_REPLY_CONCURRENCY: "3"
@@ -44,6 +47,8 @@ x-core-service-common: &core-service-common
       condition: service_started
     redpanda-receiver:
       condition: service_started
+  volumes:
+    - ./config:/app/config
   expose:
     - "8080"
 
@@ -183,6 +188,9 @@ services:
         condition: service_started
     ports:
       - "18081:8081"
+    volumes:
+      - ./config:/app/config
+      - ./sender-application.yml:/app/application.yml
 
   receiver-simulator:
     image: ${RECEIVER_SIMULATOR_IMAGE}
@@ -196,6 +204,23 @@ services:
         condition: service_started
     ports:
       - "18082:8082"
+    volumes:
+      - ./config:/app/config
+      - ./receiver-application.yml:/app/application.yml
+
+  metrics-aggregator:
+    image: ${METRICS_AGGREGATOR_IMAGE}
+    restart: on-failure
+    environment:
+      SENDER_INSTANCES: sender-simulator:8081
+      RECEIVER_INSTANCES: receiver-simulator:8082
+    depends_on:
+      sender-simulator:
+        condition: service_started
+      receiver-simulator:
+        condition: service_started
+    expose:
+      - "9090"
 
   ui-console:
     image: ${UI_CONSOLE_IMAGE}
@@ -206,6 +231,8 @@ services:
       sender-simulator:
         condition: service_started
       receiver-simulator:
+        condition: service_started
+      metrics-aggregator:
         condition: service_started
     ports:
       - "18083:80"

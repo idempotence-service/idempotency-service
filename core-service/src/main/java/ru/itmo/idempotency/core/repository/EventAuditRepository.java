@@ -1,16 +1,25 @@
 package ru.itmo.idempotency.core.repository;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import ru.itmo.idempotency.core.domain.EventAuditEntity;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 public interface EventAuditRepository extends JpaRepository<EventAuditEntity, Long> {
     List<EventAuditEntity> findByReasonOrderByCreateDateDesc(String reason);
+    List<EventAuditEntity> findByReason(String reason, Pageable pageable);
     long countByReason(String reason);
 
     @Query("SELECT COUNT(DISTINCT e.globalKey) FROM EventAuditEntity e WHERE e.reason = :reason")
     long countDistinctGlobalKeyByReason(@Param("reason") String reason);
+
+    @Query("SELECT e.reason, COUNT(e) FROM EventAuditEntity e WHERE e.createDate >= :since GROUP BY e.reason")
+    List<Object[]> countByReasonSince(@Param("since") OffsetDateTime since);
+
+    @Query("SELECT e.reason, COUNT(e) FROM EventAuditEntity e GROUP BY e.reason")
+    List<Object[]> countByReason();
 }

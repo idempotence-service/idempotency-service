@@ -2,8 +2,14 @@ package ru.itmo.idempotency.core.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.jdbc.datasource.DataSourceUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import ru.itmo.idempotency.common.config.RouteModels;
 import ru.itmo.idempotency.core.domain.IdempotencyEntity;
@@ -17,13 +23,104 @@ import java.time.ZoneOffset;
 import java.util.Collection;
 import java.util.Optional;
 
+import javax.sql.DataSource;
+
 @Service
 @RequiredArgsConstructor
 public class IdempotencyService {
 
+    private static final String INSERT_IF_ABSENT_POSTGRES_SQL = """
+            INSERT INTO idempotency (
+                global_key,
+                source_uid,
+                service_name,
+                integration_name,
+                yaml_snapshot,
+                headers,
+                payload,
+                status,
+                status_description,
+                retry_count,
+                next_attempt_date,
+                owner_id,
+                lease_until,
+                last_claim_date,
+                create_date,
+                update_date
+            ) VALUES (
+                :globalKey,
+                :sourceUid,
+                :serviceName,
+                :integrationName,
+                CAST(:yamlSnapshot AS JSONB),
+                CAST(:headers AS JSONB),
+                CAST(:payload AS JSONB),
+                :status,
+                NULL,
+                0,
+                :nextAttemptDate,
+                NULL,
+                NULL,
+                NULL,
+                :createDate,
+                :updateDate
+            )
+            """;
+
+    private static final String INSERT_IF_ABSENT_H2_SQL = """
+            INSERT INTO idempotency (
+                global_key,
+                source_uid,
+                service_name,
+                integration_name,
+                yaml_snapshot,
+                headers,
+                payload,
+                status,
+                status_description,
+                retry_count,
+                next_attempt_date,
+                owner_id,
+                lease_until,
+                last_claim_date,
+                create_date,
+                update_date
+            ) VALUES (
+                :globalKey,
+                :sourceUid,
+                :serviceName,
+                :integrationName,
+                :yamlSnapshot FORMAT JSON,
+                :headers FORMAT JSON,
+                :payload FORMAT JSON,
+                :status,
+                NULL,
+                0,
+                :nextAttemptDate,
+                NULL,
+                NULL,
+                NULL,
+                :createDate,
+                :updateDate
+            )
+            """;
+
     private final IdempotencyRepository idempotencyRepository;
     private final ObjectMapper objectMapper;
     private final StorageShardExecutor storageShardExecutor;
+    private final NamedParameterJdbcTemplate namedParameterJdbcTemplate;
+    private final DataSource dataSource;
+    @Nullable
+    private volatile String cachedDatabaseProductName;
+
+    @Transactional
+    public boolean saveIfAbsent(String globalKey,
+                                String sourceUid,
+                                RouteModels.RouteSnapshot snapshot,
+                                JsonNode headers,
+                                JsonNode payload) {
+        return storageShardExecutor.runOnKey(globalKey, () -> insertIfAbsent(globalKey, sourceUid, snapshot, headers, payload));
+    }
 
     @Transactional
     public IdempotencyEntity save(String globalKey,
@@ -184,8 +281,61 @@ public class IdempotencyService {
         entity.setLeaseUntil(null);
     }
 
+    private boolean insertIfAbsent(String globalKey,
+                                   String sourceUid,
+                                   RouteModels.RouteSnapshot snapshot,
+                                   JsonNode headers,
+                                   JsonNode payload) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("globalKey", globalKey)
+                .addValue("sourceUid", sourceUid)
+                .addValue("serviceName", snapshot.service())
+                .addValue("integrationName", snapshot.integration())
+                .addValue("yamlSnapshot", toJson(snapshot))
+                .addValue("headers", toJson(headers))
+                .addValue("payload", toJson(payload))
+                .addValue("status", IdempotencyStatus.RESERVED.name())
+                .addValue("nextAttemptDate", now)
+                .addValue("createDate", now)
+                .addValue("updateDate", now);
+
+        try {
+            return namedParameterJdbcTemplate.update(insertIfAbsentSql(), parameters) > 0;
+        } catch (DuplicateKeyException exception) {
+            return false;
+        }
+    }
+
     private String limitReachedDescription(String description, int attempts) {
         String baseDescription = description == null || description.isBlank() ? "Повторная попытка не удалась." : description;
         return baseDescription + " Достигнут лимит повторных попыток: " + attempts;
+    }
+
+    private String toJson(Object value) {
+        try {
+            return objectMapper.writeValueAsString(value);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Failed to serialize idempotency payload", exception);
+        }
+    }
+
+    private String insertIfAbsentSql() {
+        String productName = cachedDatabaseProductName;
+        if (productName == null) {
+            java.sql.Connection connection = DataSourceUtils.getConnection(dataSource);
+            try {
+                productName = connection.getMetaData().getDatabaseProductName();
+                cachedDatabaseProductName = productName;
+            } catch (java.sql.SQLException exception) {
+                throw new IllegalStateException("Failed to detect database vendor", exception);
+            } finally {
+                DataSourceUtils.releaseConnection(connection, dataSource);
+            }
+        }
+        if (productName != null && productName.toLowerCase().contains("h2")) {
+            return INSERT_IF_ABSENT_H2_SQL;
+        }
+        return INSERT_IF_ABSENT_POSTGRES_SQL;
     }
 }

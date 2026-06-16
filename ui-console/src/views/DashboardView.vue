@@ -41,16 +41,6 @@
           <span>Конфигурация</span>
         </button>
       </nav>
-
-      <!-- Right side -->
-      <div class="flex items-center gap-3">
-        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full"
-          style="background:var(--md-surface-2); border:1px solid var(--md-outline-v)">
-          <div class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></div>
-          <span class="text-xs mono" style="color:var(--md-on-surface-v)">{{ authStore.token }}</span>
-        </div>
-        <button @click="handleLogout" class="btn-tonal btn-sm">Выйти</button>
-      </div>
     </header>
 
     <!-- Content -->
@@ -64,18 +54,9 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth.js'
 import OverviewTab from '../components/OverviewTab.vue'
 import MessagesTab from '../components/MessagesTab.vue'
 import ConfigTab from '../components/ConfigTab.vue'
 
-const router = useRouter()
-const authStore = useAuthStore()
 const activeTab = ref('overview')
-
-function handleLogout() {
-  authStore.logout()
-  router.push('/login')
-}
 </script>

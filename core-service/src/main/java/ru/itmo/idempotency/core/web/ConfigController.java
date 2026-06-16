@@ -39,10 +39,10 @@ public class ConfigController {
 
         return ApiResponse.success(new ConfigDtos.FullConfig(
             new ConfigDtos.SchedulerConfig(
-                s.getOutboxFixedDelay().getSeconds(),
-                s.getDeliveryFixedDelay().getSeconds(),
-                s.getReplyTimeoutFixedDelay().getSeconds(),
-                s.getCleanupFixedDelay().getSeconds(),
+                toSeconds(s.getOutboxFixedDelay()),
+                toSeconds(s.getDeliveryFixedDelay()),
+                toSeconds(s.getReplyTimeoutFixedDelay()),
+                toSeconds(s.getCleanupFixedDelay()),
                 s.getBatchSize()
             ),
             new ConfigDtos.ListenerConfig(
@@ -66,10 +66,10 @@ public class ConfigController {
     @PutMapping("/scheduler")
     public ApiResponse<String> updateScheduler(@Valid @RequestBody ConfigDtos.SchedulerConfig req) {
         CoreProperties.Scheduler s = coreProperties.getScheduler();
-        if (req.outboxFixedDelaySeconds() != null) s.setOutboxFixedDelay(Duration.ofSeconds(req.outboxFixedDelaySeconds()));
-        if (req.deliveryFixedDelaySeconds() != null) s.setDeliveryFixedDelay(Duration.ofSeconds(req.deliveryFixedDelaySeconds()));
-        if (req.replyTimeoutFixedDelaySeconds() != null) s.setReplyTimeoutFixedDelay(Duration.ofSeconds(req.replyTimeoutFixedDelaySeconds()));
-        if (req.cleanupFixedDelaySeconds() != null) s.setCleanupFixedDelay(Duration.ofSeconds(req.cleanupFixedDelaySeconds()));
+        if (req.outboxFixedDelaySeconds() != null) s.setOutboxFixedDelay(toDuration(req.outboxFixedDelaySeconds()));
+        if (req.deliveryFixedDelaySeconds() != null) s.setDeliveryFixedDelay(toDuration(req.deliveryFixedDelaySeconds()));
+        if (req.replyTimeoutFixedDelaySeconds() != null) s.setReplyTimeoutFixedDelay(toDuration(req.replyTimeoutFixedDelaySeconds()));
+        if (req.cleanupFixedDelaySeconds() != null) s.setCleanupFixedDelay(toDuration(req.cleanupFixedDelaySeconds()));
         if (req.batchSize() != null) s.setBatchSize(req.batchSize());
         coreMetrics.recordConfigUpdate("scheduler");
         log.info("Scheduler config updated: {}", req);
@@ -152,6 +152,14 @@ public class ConfigController {
                 channel.partitions(),
                 channel.replicationFactor()
         );
+    }
+
+    private double toSeconds(Duration duration) {
+        return duration.toMillis() / 1000.0;
+    }
+
+    private Duration toDuration(double seconds) {
+        return Duration.ofMillis(Math.round(seconds * 1000.0));
     }
 
 }

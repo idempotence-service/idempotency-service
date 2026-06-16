@@ -18,7 +18,8 @@ import ru.itmo.idempotency.common.web.ApiResponse;
 import ru.itmo.idempotency.core.service.CoreMetrics;
 import ru.itmo.idempotency.core.service.ManualReviewService;
 
-import java.util.List;
+import java.time.OffsetDateTime;
+import java.util.Map;
 
 @Slf4j
 @Validated
@@ -58,8 +59,11 @@ public class ManualReviewController {
     }
 
     @GetMapping("/get-duplicate-events")
-    public ApiResponse<List<ManualReviewDtos.DuplicateEventItem>> getDuplicateEvents() {
-        List<ManualReviewDtos.DuplicateEventItem> result = manualReviewService.getDuplicateEvents();
+    public ApiResponse<Page<ManualReviewDtos.DuplicateEventItem>> getDuplicateEvents(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(500) int limit
+    ) {
+        Page<ManualReviewDtos.DuplicateEventItem> result = manualReviewService.getDuplicateEvents(page, limit);
         coreMetrics.recordManualReviewAction("get_duplicate_events", "success");
         return ApiResponse.success(result);
     }
@@ -76,5 +80,17 @@ public class ManualReviewController {
         long result = manualReviewService.getTimeoutCount();
         coreMetrics.recordManualReviewAction("get_timeout_count", "success");
         return ApiResponse.success(result);
+    }
+
+    @GetMapping("/get-audit-activity")
+    public ApiResponse<Map<String, Long>> getAuditActivity(
+            @RequestParam(required = false) String since
+    ) {
+        coreMetrics.recordManualReviewAction("get_audit_activity", "success");
+        if (since == null || since.isEmpty()) {
+            return ApiResponse.success(manualReviewService.getAuditActivitySince(null));
+        }
+        OffsetDateTime sinceTime = OffsetDateTime.parse(since);
+        return ApiResponse.success(manualReviewService.getAuditActivitySince(sinceTime));
     }
 }

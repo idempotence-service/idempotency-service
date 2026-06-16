@@ -67,7 +67,7 @@ class CoreManualReviewApiIntegrationTest {
     }
 
     @Test
-    void shouldRequireAuthorizationForManualReviewApi() throws Exception {
+    void shouldRejectManualReviewApiWithoutAuthorization() throws Exception {
         mockMvc.perform(get("/get-error-events"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(false))

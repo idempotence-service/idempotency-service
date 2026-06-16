@@ -17,16 +17,19 @@ public class InboundMessageTransactionalHandler {
     private final EventAuditService eventAuditService;
 
     @Transactional
-    public void saveUnique(String globalKey,
-                           String uid,
-                           RouteModels.RouteSnapshot route,
-                           JsonNode userHeaders,
-                           JsonNode payload) {
-        idempotencyService.save(globalKey, uid, route, userHeaders, payload);
+    public boolean saveUnique(String globalKey,
+                              String uid,
+                              RouteModels.RouteSnapshot route,
+                              JsonNode userHeaders,
+                              JsonNode payload) {
+        if (!idempotencyService.saveIfAbsent(globalKey, uid, route, userHeaders, payload)) {
+            return false;
+        }
         if (route.requestOut() != null) {
             kafkaEventOutboxService.save(globalKey, route, ProcessingResult.SUCCESS, "Событие успешно получено");
         }
         eventAuditService.save(globalKey, route, AuditReasons.IDEMPOTENCY_PASSED, userHeaders, payload);
+        return true;
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

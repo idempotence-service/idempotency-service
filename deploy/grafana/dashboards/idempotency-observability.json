@@ -241,13 +241,13 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "sum(max by (type) (idempotency_manual_review_backlog))",
-          "legendFormat": "manual review",
+          "expr": "max(idempotency_manual_review_backlog{type=\"timeouts\"})",
+          "legendFormat": "timeouts",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Ручная обработка backlog",
+      "title": "Накопленные таймауты async reply",
       "type": "stat"
     },
     {
@@ -524,13 +524,13 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (status) (idempotency_queue_backlog)",
+          "expr": "max by (status) (idempotency_queue_backlog{status=~\"RESERVED|WAITING_ASYNC_RESPONSE|ERROR\"})",
           "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Backlog очереди идемпотентности",
+      "title": "Backlog очереди идемпотентности (live)",
       "type": "timeseries"
     },
     {
@@ -618,13 +618,13 @@
             "uid": "Prometheus"
           },
           "editorMode": "code",
-          "expr": "max by (status) (idempotency_outbox_backlog)",
+          "expr": "max by (status) (idempotency_outbox_backlog{status=~\"NEW|ERROR\"})",
           "legendFormat": "{{status}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "Backlog technical outbox",
+      "title": "Backlog technical outbox (live)",
       "type": "timeseries"
     },
     {

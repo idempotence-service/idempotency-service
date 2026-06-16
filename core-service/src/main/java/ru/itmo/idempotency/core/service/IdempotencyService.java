@@ -47,11 +47,11 @@ public class IdempotencyService {
                 last_claim_date,
                 create_date,
                 update_date
-            ) VALUES (
-                :globalKey,
-                :sourceUid,
-                :serviceName,
-                :integrationName,
+             ) VALUES (
+                 :globalKey,
+                 :sourceUid,
+                 :serviceName,
+                 :integrationName,
                 CAST(:yamlSnapshot AS JSONB),
                 CAST(:headers AS JSONB),
                 CAST(:payload AS JSONB),
@@ -61,11 +61,12 @@ public class IdempotencyService {
                 :nextAttemptDate,
                 NULL,
                 NULL,
-                NULL,
-                :createDate,
-                :updateDate
-            )
-            """;
+                 NULL,
+                 :createDate,
+                 :updateDate
+             )
+             ON CONFLICT (global_key) DO NOTHING
+             """;
 
     private static final String INSERT_IF_ABSENT_H2_SQL = """
             INSERT INTO idempotency (
